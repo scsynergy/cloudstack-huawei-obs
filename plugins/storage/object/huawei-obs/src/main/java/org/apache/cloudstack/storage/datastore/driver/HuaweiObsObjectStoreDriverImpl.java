@@ -62,6 +62,7 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.TimeZone;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -482,7 +483,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                             .map(j -> (JSONObject) iter.next())
                             .map(k -> k.getString("AccessKeyId"));
                 }
-                for (String tmp : accessKeyIds.toList()) {
+                for (String tmp : accessKeyIds.collect(Collectors.toList())) {
                     URI deleteAccessKeyUri = new URI(getRequestString("DeleteAccessKey", tmp, hostPort, endpoint, clientAccessKey, clientSecretKey, newUser));
                     request = HttpRequest.newBuilder(deleteAccessKeyUri)
                             .GET()
