@@ -449,9 +449,9 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                         .getJSONObject("CreateAccessKeyResult")
                         .getJSONObject("AccessKey");
 
-                String status = createdAccessKey.getString("");
-                String ak = createdAccessKey.getString("");
-                String sk = createdAccessKey.getString("");
+                String status = createdAccessKey.getString("Status");
+                String ak = createdAccessKey.getString("AccessKeyId");
+                String sk = createdAccessKey.getString("SecretAccessKey");
                 // Store user credentials
                 Map<String, String> details = new HashMap<>();
                 details.put(OBS_ACCESS_KEY, ak);
