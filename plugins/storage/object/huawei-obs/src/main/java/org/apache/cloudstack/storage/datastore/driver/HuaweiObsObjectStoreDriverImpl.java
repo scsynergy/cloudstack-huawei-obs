@@ -403,10 +403,12 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         Account account = _accountDao.findById(accountId);
         String newUser = account.getAccountName();
         Map<String, String> storeDetails = _storeDetailsDao.getDetails(storeId);
-        String endpointString = _storeDao.findById(storeId).getUrl();
-        URI endpointUri = URI.create(endpointString);
-        String hostPort = endpointUri.getHost() + ":" + endpointUri.getPort();
-        String endpoint = endpointUri.getPath();
+//        String endpointString = _storeDao.findById(storeId).getUrl();
+//        URI endpointUri = URI.create(endpointString);
+//        String hostPort = endpointUri.getHost() + ":" + endpointUri.getPort();
+//        String endpoint = endpointUri.getPath();
+        String hostPort = "srv05.scsynergy.local:9443";
+        String endpoint = "/poe/rest";
         String clientAccessKey = storeDetails.get(ACCESS_KEY);
         String clientSecretKey = storeDetails.get(SECRET_KEY);
 
