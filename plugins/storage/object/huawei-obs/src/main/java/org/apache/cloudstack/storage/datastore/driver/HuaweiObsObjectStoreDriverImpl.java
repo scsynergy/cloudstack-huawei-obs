@@ -62,8 +62,6 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.TimeZone;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import javax.inject.Inject;
@@ -73,7 +71,6 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import org.apache.cloudstack.storage.datastore.db.ObjectStoreVO;
 import org.apache.log4j.Logger;
-import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.XML;
 
@@ -403,12 +400,12 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         Account account = _accountDao.findById(accountId);
         String newUser = account.getAccountName();
         Map<String, String> storeDetails = _storeDetailsDao.getDetails(storeId);
-//        String endpointString = _storeDao.findById(storeId).getUrl();
-//        URI endpointUri = URI.create(endpointString);
-//        String hostPort = endpointUri.getHost() + ":" + endpointUri.getPort();
-//        String endpoint = endpointUri.getPath();
-        String hostPort = "srv05.scsynergy.local:9443";
-        String endpoint = "/poe/rest";
+        String endpointString = _storeDao.findById(storeId).getUrl();
+        URI endpointUri = URI.create(endpointString);
+        String hostPort = endpointUri.getHost() + ":" + endpointUri.getPort();
+        String endpoint = endpointUri.getPath();
+        hostPort = "srv05.scsynergy.local:9443";
+        endpoint = "/poe/rest";
         String clientAccessKey = storeDetails.get(ACCESS_KEY);
         String clientSecretKey = storeDetails.get(SECRET_KEY);
 
@@ -416,8 +413,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             HttpClient httpClient = getHttpClient();
             URI createUserUri = new URI(getRequestString("CreateUser", null, hostPort, endpoint, clientAccessKey, clientSecretKey, newUser));
             URI createAccessKey = new URI(getRequestString("CreateAccessKey", null, hostPort, endpoint, clientAccessKey, clientSecretKey, newUser));
-            URI listAccessKeysUri = new URI(getRequestString("ListAccessKeys", null, hostPort, endpoint, clientAccessKey, clientSecretKey, newUser));
-            URI deleteUserUri = new URI(getRequestString("DeleteUser", null, hostPort, endpoint, clientAccessKey, clientSecretKey, newUser));
             HttpRequest request = HttpRequest.newBuilder(createUserUri)
                     .GET()
                     .version(HttpClient.Version.HTTP_2)
@@ -427,12 +422,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             System.err.println(response.statusCode());
             System.err.println(response.body());
             if (response.statusCode() == 200) {
-                JSONObject jsonXml = XML.toJSONObject(response.body());
-                System.out.println(jsonXml.toString(4));
-                JSONObject createdUser = jsonXml
-                        .getJSONObject("CreateUserResponse")
-                        .getJSONObject("CreateUserResult")
-                        .getJSONObject("User");
                 HttpRequest createAccessKeyRequest = HttpRequest.newBuilder()
                         .uri(createAccessKey)
                         .GET()
@@ -441,15 +430,12 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                         .build();
                 response = httpClient.send(createAccessKeyRequest, HttpResponse.BodyHandlers.ofString());
                 System.err.println(response.statusCode());
-                System.err.println(response.body());
-                jsonXml = XML.toJSONObject(response.body());
+                JSONObject jsonXml = XML.toJSONObject(response.body());
                 System.out.println(jsonXml.toString(4));
                 JSONObject createdAccessKey = jsonXml
                         .getJSONObject("CreateAccessKeyResponse")
                         .getJSONObject("CreateAccessKeyResult")
                         .getJSONObject("AccessKey");
-
-                String status = createdAccessKey.getString("Status");
                 String ak = createdAccessKey.getString("AccessKeyId");
                 String sk = createdAccessKey.getString("SecretAccessKey");
                 // Store user credentials
@@ -457,58 +443,16 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                 details.put(OBS_ACCESS_KEY, ak);
                 details.put(OBS_SECRET_KEY, sk);
                 _accountDetailsDao.persist(accountId, details);
+                return true;
             } else if (response.statusCode() == 409) {
-                request = HttpRequest.newBuilder(listAccessKeysUri)
-                        .GET()
-                        .version(HttpClient.Version.HTTP_2)
-                        .timeout(Duration.ofSeconds(30))
-                        .build();
-                response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-                System.err.println(response.statusCode());
-                System.err.println(response.body());
-                JSONObject jsonXml = XML.toJSONObject(response.body());
-                System.out.println(jsonXml.toString(4));
-                JSONObject accessKeyMetadata = jsonXml
-                        .getJSONObject("ListAccessKeysResponse")
-                        .getJSONObject("ListAccessKeysResult")
-                        .getJSONObject("AccessKeyMetadata");
-
-                Stream<String> accessKeyIds = Stream.empty();
-                JSONObject member = accessKeyMetadata.optJSONObject("member");
-                JSONArray members = accessKeyMetadata.optJSONArray("member");
-                if (member != null) {
-                    accessKeyIds = Stream.of(member.getString("AccessKeyId"));
-                } else if (members != null) {
-                    Iterator<Object> iter = members.iterator();
-                    accessKeyIds = Stream.generate(() -> null)
-                            .takeWhile(i -> iter.hasNext())
-                            .map(j -> (JSONObject) iter.next())
-                            .map(k -> k.getString("AccessKeyId"));
-                }
-                for (String tmp : accessKeyIds.collect(Collectors.toList())) {
-                    URI deleteAccessKeyUri = new URI(getRequestString("DeleteAccessKey", tmp, hostPort, endpoint, clientAccessKey, clientSecretKey, newUser));
-                    request = HttpRequest.newBuilder(deleteAccessKeyUri)
-                            .GET()
-                            .version(HttpClient.Version.HTTP_2)
-                            .timeout(Duration.ofSeconds(30))
-                            .build();
-                    response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-                    System.err.println(response.statusCode());
-                    System.err.println(response.body());
-                }
-                request = HttpRequest.newBuilder(deleteUserUri)
-                        .GET()
-                        .version(HttpClient.Version.HTTP_2)
-                        .timeout(Duration.ofSeconds(30))
-                        .build();
-                response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-                System.err.println(response.body());
+                logger.debug("Skipping user creation as the user already exists in Huawei OBS store: " + newUser);
+                return true;
             }
-        } catch (IOException | NoSuchAlgorithmException | KeyManagementException | InvalidKeyException | URISyntaxException | InterruptedException ex) {
+        } catch (NoSuchAlgorithmException | KeyManagementException | InvalidKeyException | URISyntaxException | IOException | InterruptedException ex) {
             logger.debug("Failed to create Huawei OBS user " + newUser, ex);
             throw new CloudRuntimeException(ex);
         }
-        return true;
+        return false;
     }
 
     private static Map<String, String> getParameters(String action, String accessKeyId, String accessKey, String username) {
