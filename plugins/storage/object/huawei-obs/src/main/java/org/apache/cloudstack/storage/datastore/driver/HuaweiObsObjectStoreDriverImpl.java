@@ -363,8 +363,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
     @Override
     public void setBucketQuota(String bucketName, long storeId, long size) {
         try (ObsClient obsClient = getObsClient(storeId)) {
-            BucketQuota quota = new BucketQuota();
-            quota.setBucketQuota(size);
+            BucketQuota quota = new BucketQuota(1024 * 1024 * 1024 * size);
             obsClient.setBucketQuota(bucketName, quota);
         } catch (Exception ex) {
             throw new CloudRuntimeException(ex);
