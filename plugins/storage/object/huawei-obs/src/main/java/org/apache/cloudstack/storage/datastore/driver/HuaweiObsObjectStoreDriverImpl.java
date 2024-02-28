@@ -16,6 +16,7 @@ import com.cloud.user.AccountDetailsDao;
 import com.cloud.user.dao.AccountDao;
 import com.cloud.utils.exception.CloudRuntimeException;
 import com.obs.services.ObsClient;
+import com.obs.services.exception.ObsException;
 import com.obs.services.model.BucketEncryption;
 import com.obs.services.model.BucketQuota;
 import com.obs.services.model.BucketStorageInfo;
@@ -322,6 +323,13 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         try (ObsClient obsClient = getObsClient(storeId)) {
             BucketEncryption bucketEncryption = new BucketEncryption(SSEAlgorithmEnum.KMS);
             obsClient.setBucketEncryption(bucketName, bucketEncryption);
+        } catch (ObsException ex) {
+            if (ex.getResponseCode() == 405) {
+                logger.debug("No license for bucket level encryption");
+                return false;
+            } else {
+                throw new CloudRuntimeException(ex);
+            }
         } catch (Exception ex) {
             throw new CloudRuntimeException(ex);
         }
@@ -332,6 +340,13 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
     public boolean deleteBucketEncryption(String bucketName, long storeId) {
         try (ObsClient obsClient = getObsClient(storeId)) {
             obsClient.deleteBucketEncryption(bucketName);
+        } catch (ObsException ex) {
+            if (ex.getResponseCode() == 405) {
+                logger.debug("No license for bucket level encryption");
+                return false;
+            } else {
+                throw new CloudRuntimeException(ex);
+            }
         } catch (Exception ex) {
             throw new CloudRuntimeException(ex);
         }
@@ -360,6 +375,9 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         return true;
     }
 
+    /**
+     * @param size Cloudstack passes this value as units of GB
+     */
     @Override
     public void setBucketQuota(String bucketName, long storeId, long size) {
         try (ObsClient obsClient = getObsClient(storeId)) {
@@ -403,7 +421,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         URI endpointUri = URI.create(endpointString);
         String hostPort = endpointUri.getHost() + ":" + endpointUri.getPort();
         String endpoint = endpointUri.getPath();
-        hostPort = "srv05.scsynergy.local:9443";
+        hostPort = "poe-obs.scsynergy.net:9443";
         endpoint = "/poe/rest";
         String clientAccessKey = storeDetails.get(ACCESS_KEY);
         String clientSecretKey = storeDetails.get(SECRET_KEY);
@@ -418,8 +436,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .timeout(Duration.ofSeconds(30))
                     .build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            System.err.println(response.statusCode());
-            System.err.println(response.body());
             if (response.statusCode() == 200) {
                 HttpRequest createAccessKeyRequest = HttpRequest.newBuilder()
                         .uri(createAccessKey)
@@ -428,9 +444,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                         .timeout(Duration.ofSeconds(30))
                         .build();
                 response = httpClient.send(createAccessKeyRequest, HttpResponse.BodyHandlers.ofString());
-                System.err.println(response.statusCode());
                 JSONObject jsonXml = XML.toJSONObject(response.body());
-                System.out.println(jsonXml.toString(4));
                 JSONObject createdAccessKey = jsonXml
                         .getJSONObject("CreateAccessKeyResponse")
                         .getJSONObject("CreateAccessKeyResult")
@@ -516,9 +530,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         data.append(urlEncode(uri, true)).append("\n");
         data.append(getCanonicalizedQueryString(signParameters));
         String stringToSign = data.toString();
-//        System.err.println("---------------");
-//        System.err.println(stringToSign);
-//        System.err.println("===============");
         return sign(stringToSign.getBytes(CHARSET_UTF_8), secretKey, SIGNATURE_METHOD);
     }
 
