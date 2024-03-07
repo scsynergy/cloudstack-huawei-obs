@@ -130,9 +130,10 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             String endpoint = _storeDao.findById(storeId).getUrl();
             String scheme = new URI(endpoint).getScheme() + "://";
             String everythingelse = endpoint.substring(scheme.length());
+//            bucketVO.setBucketURL(scheme + bucketName + "." + everythingelse);
+            bucketVO.setBucketURL(endpoint + "/" + bucketName);
             bucketVO.setAccessKey(accountAccessKey);
             bucketVO.setSecretKey(accountSecretKey);
-            bucketVO.setBucketURL(scheme + bucketName + "." + everythingelse);
             _bucketDao.update(bucket.getId(), bucketVO);
             return bucket;
         } catch (Exception ex) {
