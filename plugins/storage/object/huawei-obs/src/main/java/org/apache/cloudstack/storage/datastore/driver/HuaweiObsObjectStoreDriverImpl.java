@@ -47,6 +47,8 @@ import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import org.apache.cloudstack.engine.subsystem.api.storage.DataStore;
 import org.apache.cloudstack.storage.datastore.db.ObjectStoreDao;
 import org.apache.cloudstack.storage.datastore.db.ObjectStoreDetailsDao;
@@ -92,7 +94,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
     private static final String SECRET_KEY = "secretkey";
     private static final String OBS_ACCESS_KEY = "huawei-obs-accesskey";
     private static final String OBS_SECRET_KEY = "huawei-obs-secretkey";
-
     private static final String SIGNATURE_METHOD = "HmacSHA1";
     private static final String SIGNATURE_VERSION = "2";
     private static final String CHARSET_UTF_8 = "UTF-8";
@@ -121,17 +122,16 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             }
 
             CreateBucketRequest createBucketRequest = new CreateBucketRequest(bucketName);
-            createBucketRequest.setAcl(com.obs.services.model.AccessControlList.REST_CANNED_PUBLIC_READ_WRITE);
             obsClient.createBucket(createBucketRequest);
 
             BucketVO bucketVO = _bucketDao.findById(bucket.getId());
             String accountAccessKey = _accountDetailsDao.findDetail(accountId, OBS_ACCESS_KEY).getValue();
             String accountSecretKey = _accountDetailsDao.findDetail(accountId, OBS_SECRET_KEY).getValue();
             String endpoint = _storeDao.findById(storeId).getUrl();
-            String scheme = new URI(endpoint).getScheme() + "://";
+            String scheme = new URI(endpoint).getScheme();
             String everythingelse = endpoint.substring(scheme.length());
-//            bucketVO.setBucketURL(scheme + bucketName + "." + everythingelse);
-            bucketVO.setBucketURL(endpoint + "/" + bucketName);
+            // Cloudstack can only handle path style (https://fqdn:port/bucketname) but not domain style (https://bucketname.fqdn:port) but maybe both mixed together?
+            bucketVO.setBucketURL(scheme + "://" + bucketName + "." + everythingelse + "/" + bucketName);
             bucketVO.setAccessKey(accountAccessKey);
             bucketVO.setSecretKey(accountSecretKey);
             _bucketDao.update(bucket.getId(), bucketVO);
@@ -270,25 +270,115 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         }
     }
 
+    /**
+     * When a bucket is created as "private" via the Huawei UI it simply does
+     * not have a policy. Trying to read or delete the bucket policy of a
+     * "private" bucket results in "404 - The bucket policy does not exist".
+     *
+     * @param bucketName
+     * @param policy
+     * @param storeId
+     */
     @Override
     public void setBucketPolicy(String bucketName, String policy, long storeId) {
-        if (policy.equalsIgnoreCase("public") || policy.equalsIgnoreCase("private")) {
-            StringBuilder publicPolicyBuilder = new StringBuilder();
-            publicPolicyBuilder.append("{\n");
-            publicPolicyBuilder.append("    \"Statement\": [\n");
-            publicPolicyBuilder.append("        {\n");
-            if (policy.equalsIgnoreCase("public")) {
-                publicPolicyBuilder.append("            \"Effect\": \"Allow\",\n");
-            } else if (policy.equalsIgnoreCase("private")) {
-                publicPolicyBuilder.append("            \"Effect\": \"Deny\",\n");
-            }
-            publicPolicyBuilder.append("            \"Action\": \"*\",\n");
-            publicPolicyBuilder.append("            \"Principal\": \"*\",\n");
-            publicPolicyBuilder.append("            \"Resource\": [\"arn:aws:s3:::").append(bucketName).append("/*\"]\n");
-            publicPolicyBuilder.append("        }\n");
-            publicPolicyBuilder.append("    ]\n");
-            publicPolicyBuilder.append("}\n");
-            policy = publicPolicyBuilder.toString();
+        if (policy == null || policy.equalsIgnoreCase("private")) {
+            return; // nothing needs to be done as this is the default for Huawei Object Storage
+        } else if (policy.equalsIgnoreCase("public-read-only")) {
+            String id = "Policy" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+            StringBuilder publicRead = new StringBuilder();
+            publicRead.append("{\n");
+            publicRead.append("   \"Version\": \"2008-10-17\",\n");
+            publicRead.append("   \"Id\": \"").append(id).append("\",\n");
+            publicRead.append("   \"Statement\": [\n");
+            publicRead.append("      {\n");
+            publicRead.append("         \"Sid\": \"publicReadOnlyPolicyStatementId\",\n");
+            publicRead.append("         \"Effect\": \"Allow\",\n");
+            publicRead.append("         \"Principal\": {\n");
+            publicRead.append("            \"AWS\": [\n");
+            publicRead.append("               \"*\"\n");
+            publicRead.append("            ]\n");
+            publicRead.append("         },\n");
+            publicRead.append("         \"Action\": [\n");
+            publicRead.append("            \"s3:GetObject\",\n");
+            publicRead.append("            \"s3:GetObjectVersion\",\n");
+            publicRead.append("            \"s3:ListMultipartUploadParts\",\n");
+            publicRead.append("            \"s3:GetObjectAcl\",\n");
+            publicRead.append("            \"s3:GetObjectVersionAcl\"\n");
+            publicRead.append("         ],\n");
+            publicRead.append("         \"Resource\": [\n");
+            publicRead.append("            \"arn:aws:s3:::").append(bucketName).append("/*\"\n");
+            publicRead.append("         ]\n");
+            publicRead.append("      },\n");
+            publicRead.append("      {\n");
+            publicRead.append("         \"Sid\": \"publicHeadBucketPolicyStatementId\",\n");
+            publicRead.append("         \"Effect\": \"Allow\",\n");
+            publicRead.append("         \"Principal\": {\n");
+            publicRead.append("            \"AWS\": [\n");
+            publicRead.append("               \"*\"\n");
+            publicRead.append("            ]\n");
+            publicRead.append("         },\n");
+            publicRead.append("         \"Action\": [\n");
+            publicRead.append("            \"s3:HeadBucket\",\n");
+            publicRead.append("            \"s3:ListBucket\"\n");
+            publicRead.append("         ],\n");
+            publicRead.append("         \"Resource\": [\n");
+            publicRead.append("            \"arn:aws:s3:::").append(bucketName).append("\"\n");
+            publicRead.append("         ]\n");
+            publicRead.append("      }\n");
+            publicRead.append("   ]\n");
+            publicRead.append("}");
+            policy = publicRead.toString();
+        } else if (policy.equalsIgnoreCase("public")) {
+            String id = "Policy" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+            StringBuilder publicWrite = new StringBuilder();
+            publicWrite.append("{\n");
+            publicWrite.append("   \"Version\": \"2008-10-17\",\n");
+            publicWrite.append("   \"Id\": \"").append(id).append("\",\n");
+            publicWrite.append("   \"Statement\": [\n");
+            publicWrite.append("      {\n");
+            publicWrite.append("         \"Sid\": \"publicReadWritePolicyStatementId\",\n");
+            publicWrite.append("         \"Effect\": \"Allow\",\n");
+            publicWrite.append("         \"Principal\": {\n");
+            publicWrite.append("            \"AWS\": [\n");
+            publicWrite.append("               \"*\"\n");
+            publicWrite.append("            ]\n");
+            publicWrite.append("         },\n");
+            publicWrite.append("         \"Action\": [\n");
+            publicWrite.append("            \"s3:GetObject\",\n");
+            publicWrite.append("            \"s3:PutObject\",\n");
+            publicWrite.append("            \"s3:GetObjectVersion\",\n");
+            publicWrite.append("            \"s3:DeleteObjectVersion\",\n");
+            publicWrite.append("            \"s3:DeleteObject\",\n");
+            publicWrite.append("            \"s3:ListMultipartUploadParts\",\n");
+            publicWrite.append("            \"s3:GetObjectAcl\",\n");
+            publicWrite.append("            \"s3:GetObjectVersionAcl\",\n");
+            publicWrite.append("            \"s3:PutObjectAcl\",\n");
+            publicWrite.append("            \"s3:PutObjectVersionAcl\",\n");
+            publicWrite.append("            \"s3:AbortMultipartUpload\"\n");
+            publicWrite.append("         ],\n");
+            publicWrite.append("         \"Resource\": [\n");
+            publicWrite.append("            \"arn:aws:s3:::").append(bucketName).append("/*\"\n");
+            publicWrite.append("         ]\n");
+            publicWrite.append("      },\n");
+            publicWrite.append("      {\n");
+            publicWrite.append("         \"Sid\": \"publicHeadBucketPolicyStatementId\",\n");
+            publicWrite.append("         \"Effect\": \"Allow\",\n");
+            publicWrite.append("         \"Principal\": {\n");
+            publicWrite.append("            \"AWS\": [\n");
+            publicWrite.append("               \"*\"\n");
+            publicWrite.append("            ]\n");
+            publicWrite.append("         },\n");
+            publicWrite.append("         \"Action\": [\n");
+            publicWrite.append("            \"s3:HeadBucket\",\n");
+            publicWrite.append("            \"s3:ListBucket\"\n");
+            publicWrite.append("         ],\n");
+            publicWrite.append("         \"Resource\": [\n");
+            publicWrite.append("            \"arn:aws:s3:::").append(bucketName).append("\"\n");
+            publicWrite.append("         ]\n");
+            publicWrite.append("      }\n");
+            publicWrite.append("   ]\n");
+            publicWrite.append("}");
+            policy = publicWrite.toString();
         }
 
         try (ObsClient obsClient = getObsClient(storeId)) {
@@ -298,6 +388,15 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         }
     }
 
+    /**
+     * When a bucket is created as "private" via the Huawei UI it simply does
+     * not have a policy. Trying to read or delete the bucket policy of a
+     * "private" bucket results in "404 - The bucket policy does not exist".
+     *
+     * @param bucketName
+     * @param storeId
+     * @return
+     */
     @Override
     public BucketPolicy getBucketPolicy(String bucketName, long storeId) {
         try (ObsClient obsClient = getObsClient(storeId)) {
@@ -310,6 +409,14 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         }
     }
 
+    /**
+     * When a bucket is created as "private" via the Huawei UI it simply does
+     * not have a policy. Trying to read or delete the bucket policy of a
+     * "private" bucket results in "404 - The bucket policy does not exist".
+     *
+     * @param bucketName
+     * @param storeId
+     */
     @Override
     public void deleteBucketPolicy(String bucketName, long storeId) {
         try (ObsClient obsClient = getObsClient(storeId)) {
