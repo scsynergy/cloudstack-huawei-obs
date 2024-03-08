@@ -128,10 +128,8 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             String accountAccessKey = _accountDetailsDao.findDetail(accountId, OBS_ACCESS_KEY).getValue();
             String accountSecretKey = _accountDetailsDao.findDetail(accountId, OBS_SECRET_KEY).getValue();
             String endpoint = _storeDao.findById(storeId).getUrl();
-            String scheme = new URI(endpoint).getScheme();
-            String everythingelse = endpoint.substring(scheme.length());
-            // Cloudstack can only handle path style (https://fqdn:port/bucketname) but not domain style (https://bucketname.fqdn:port) but maybe both mixed together?
-            bucketVO.setBucketURL(scheme + "://" + bucketName + "." + everythingelse + "/" + bucketName);
+            // Cloudstack can only handle path mode (https://fqdn:port/bucketname) but neither domain mode (https://bucketname.fqdn:port) nor mixed mode (https://bucketname.fqdn:port/bucketname)
+            bucketVO.setBucketURL(endpoint + "/" + bucketName);
             bucketVO.setAccessKey(accountAccessKey);
             bucketVO.setSecretKey(accountSecretKey);
             _bucketDao.update(bucket.getId(), bucketVO);
