@@ -90,10 +90,10 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
     @Inject
     ObjectStoreDetailsDao _storeDetailsDao;
 
-    private static final String ACCESS_KEY = "accesskey";
-    private static final String SECRET_KEY = "secretkey";
-    private static final String OBS_ACCESS_KEY = "huawei-obs-accesskey";
-    private static final String OBS_SECRET_KEY = "huawei-obs-secretkey";
+    private static final String OBJECT_STORE_ACCESS_KEY = "accesskey";
+    private static final String OBJECT_STORE_SECRET_KEY = "secretkey";
+    private static final String ACCOUNT_ACCESS_KEY = "huawei-obs-accesskey";
+    private static final String ACCOUNT_SECRET_KEY = "huawei-obs-secretkey";
     private static final String SIGNATURE_METHOD = "HmacSHA1";
     private static final String SIGNATURE_VERSION = "2";
     private static final String CHARSET_UTF_8 = "UTF-8";
@@ -110,7 +110,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         long storeId = bucket.getObjectStoreId();
         Account account = _accountDao.findById(accountId);
 
-        if ((_accountDetailsDao.findDetail(accountId, OBS_ACCESS_KEY) == null) || (_accountDetailsDao.findDetail(accountId, OBS_SECRET_KEY) == null)) {
+        if ((_accountDetailsDao.findDetail(accountId, ACCOUNT_ACCESS_KEY) == null) || (_accountDetailsDao.findDetail(accountId, ACCOUNT_SECRET_KEY) == null)) {
             throw new CloudRuntimeException("Bucket access credentials unavailable for account: " + account.getAccountName());
         }
 
@@ -125,8 +125,8 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             obsClient.createBucket(createBucketRequest);
 
             BucketVO bucketVO = _bucketDao.findById(bucket.getId());
-            String accountAccessKey = _accountDetailsDao.findDetail(accountId, OBS_ACCESS_KEY).getValue();
-            String accountSecretKey = _accountDetailsDao.findDetail(accountId, OBS_SECRET_KEY).getValue();
+            String accountAccessKey = _accountDetailsDao.findDetail(accountId, ACCOUNT_ACCESS_KEY).getValue();
+            String accountSecretKey = _accountDetailsDao.findDetail(accountId, ACCOUNT_SECRET_KEY).getValue();
             String endpoint = _storeDao.findById(storeId).getUrl();
             // Cloudstack can only handle path mode (https://fqdn:port/bucketname) but neither domain mode (https://bucketname.fqdn:port) nor mixed mode (https://bucketname.fqdn:port/bucketname)
             bucketVO.setBucketURL(endpoint + "/" + bucketName);
@@ -135,7 +135,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             _bucketDao.update(bucket.getId(), bucketVO);
             return bucket;
         } catch (Exception ex) {
-            logger.debug("Error creating bucket: " + bucketName, ex);
             throw new CloudRuntimeException(ex);
         }
     }
@@ -151,7 +150,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                 bucketsList.add(bucket);
             }
         } catch (Exception ex) {
-            logger.debug("Error listing buckets", ex);
             throw new CloudRuntimeException(ex);
         }
         return bucketsList;
@@ -172,7 +170,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                 throw new CloudRuntimeException("Bucket " + bucketName + " cannot be deleted because it is not empty");
             }
         } catch (Exception ex) {
-            logger.debug("Error deleting bucket: " + bucketName, ex);
             throw new CloudRuntimeException(ex);
         }
         return true;
@@ -205,7 +202,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                 }
             }
         } catch (Exception ex) {
-            logger.debug("Error getting ACL from bucket: " + bucketName, ex);
             throw new CloudRuntimeException(ex);
         }
         return accessControlList;
@@ -268,7 +264,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         try (ObsClient obsClient = getObsClient(storeId)) {
             obsClient.setBucketAcl(bucketName, obsAccessControlList);
         } catch (Exception ex) {
-            logger.debug("Error setting ACL on bucket: " + bucketName, ex);
             throw new CloudRuntimeException(ex);
         }
     }
@@ -277,9 +272,9 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
      * When a bucket is created as "private" via the Huawei UI it simply does
      * not have a policy. Trying to read or delete the bucket policy of a
      * "private" bucket results in "404 - The bucket policy does not exist".
-     * Huawei's UI has three default policies to choose from: "private",
-     * "public read-only" and "public read-write". Since the Cloudstack UI only
-     * offers "private" and "public" in the dropdown I chose to map "public" to
+     * Huawei's UI has three default policies to choose from: "private", "public
+     * read-only" and "public read-write". Since the Cloudstack UI only offers
+     * "private" and "public" in the dropdown I chose to map "public" to
      * "public-read-write". Maybe in the future we can have the UI adapt the
      * items in the dropdown depending on what provider is selected?
      *
@@ -392,7 +387,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         try (ObsClient obsClient = getObsClient(storeId)) {
             obsClient.setBucketPolicy(bucketName, policy);
         } catch (Exception ex) {
-            logger.debug("Error applying policy to bucket: " + bucketName, ex);
             throw new CloudRuntimeException(ex);
         }
     }
@@ -414,7 +408,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             bucketPolicy.setPolicyText(policy);
             return bucketPolicy;
         } catch (Exception ex) {
-            logger.debug("Error reading bucket policy on bucket: " + bucketName, ex);
             throw new CloudRuntimeException(ex);
         }
     }
@@ -432,7 +425,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         try (ObsClient obsClient = getObsClient(storeId)) {
             obsClient.deleteBucketPolicy(bucketName);
         } catch (Exception ex) {
-            logger.debug("Error deleting bucket policy from bucket: " + bucketName, ex);
             throw new CloudRuntimeException(ex);
         }
     }
@@ -447,11 +439,9 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                 logger.debug("No license for bucket level encryption");
                 return false;
             } else {
-                logger.debug("Error enabling bucket level encryption on bucket: " + bucketName, ex);
                 throw new CloudRuntimeException(ex);
             }
         } catch (Exception ex) {
-            logger.debug("Error enabling bucket level encryption on bucket: " + bucketName, ex);
             throw new CloudRuntimeException(ex);
         }
         return true;
@@ -466,11 +456,9 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                 logger.debug("No license for bucket level encryption");
                 return false;
             } else {
-                logger.debug("Error disabling bucket level encryption on bucket: " + bucketName, ex);
                 throw new CloudRuntimeException(ex);
             }
         } catch (Exception ex) {
-            logger.debug("Error disabling bucket level encryption on bucket: " + bucketName, ex);
             throw new CloudRuntimeException(ex);
         }
         return true;
@@ -482,7 +470,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             BucketVersioningConfiguration bucketVersioningConfiguration = new BucketVersioningConfiguration(VersioningStatusEnum.ENABLED);
             obsClient.setBucketVersioning(bucketName, bucketVersioningConfiguration);
         } catch (Exception ex) {
-            logger.debug("Error enabling versioning on bucket: " + bucketName, ex);
             throw new CloudRuntimeException(ex);
         }
         return true;
@@ -494,7 +481,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             BucketVersioningConfiguration bucketVersioningConfiguration = new BucketVersioningConfiguration(VersioningStatusEnum.SUSPENDED);
             obsClient.setBucketVersioning(bucketName, bucketVersioningConfiguration);
         } catch (Exception ex) {
-            logger.debug("Error suspending versioning on bucket: " + bucketName, ex);
             throw new CloudRuntimeException(ex);
         }
         return true;
@@ -509,7 +495,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             BucketQuota quota = new BucketQuota(1024 * 1024 * 1024 * size);
             obsClient.setBucketQuota(bucketName, quota);
         } catch (Exception ex) {
-            logger.debug("Error setting quota on bucket: " + bucketName, ex);
             throw new CloudRuntimeException(ex);
         }
     }
@@ -524,7 +509,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                 allBucketsUsage.put(bucketName, storageInfo.getSize());
             }
         } catch (Exception ex) {
-            logger.debug("Error getting usage statistics from all buckets", ex);
             throw new CloudRuntimeException(ex);
         }
         return allBucketsUsage;
@@ -534,54 +518,74 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         ObjectStoreVO store = _storeDao.findById(storeId);
         String endpoint = store.getUrl();
         Map<String, String> storeDetails = _storeDetailsDao.getDetails(storeId);
-        String clientAccessKey = storeDetails.get(ACCESS_KEY);
-        String clientSecretKey = storeDetails.get(SECRET_KEY);
+        String clientAccessKey = storeDetails.get(OBJECT_STORE_ACCESS_KEY);
+        String clientSecretKey = storeDetails.get(OBJECT_STORE_SECRET_KEY);
         return new ObsClient(clientAccessKey, clientSecretKey, endpoint);
     }
 
     /**
-     * Huawei Object Storage has separate interfaces for manipulating buckets and
-     * manipulating users which is actually a cool feature for security: Our
-     * bucket manipulation URL is accessible from the internet whereas our user
-     * manipulation URL is only accessible from within our private networks
-     * where the Cloudstack management server is located. When I tried to put
-     * both URLs on the same host and port the object storage interpreted
-     * "/poe/rest" as a bucket and not as the user administration endpoint.
-     * Therefore I had to separate the host-and-port parts of the URLs and
-     * hard-code the URL for manipulating users into the code here. I hope that
-     * Cloudstack will at some time in the future offer an optional input field
-     * to enter this for-now-hard-coded URL when creating the object storage in
-     * the UI so that it no longer needs to be hard-coded.
+     * Huawei Object Storage has separate interfaces for manipulating buckets
+     * and manipulating accounts and users which is actually a cool feature for
+     * security: Our bucket manipulation URL is accessible from the internet
+     * whereas our account and user manipulation URL is only accessible from
+     * within our private networks where the Cloudstack management server is
+     * located.
      *
-     * @return true when the user exists or is created, false otherwise
+     * When I tried to put both URLs on the same host and port the object
+     * storage interpreted "/poe/rest" as a bucket and not as the account and
+     * user administration endpoint. Therefore I had to separate the
+     * host-and-port parts of the URLs and hard-code the URL for manipulating
+     * accounts and users into the code here. I hope that Cloudstack will at
+     * some time in the future offer an optional input field to enter this
+     * for-now-hard-coded URL when creating the object storage in the UI so that
+     * it no longer needs to be hard-coded.
+     *
+     * Huawei has a three-tiered approach to user management: The "admin" (root
+     * superuser) creates accounts (an organization) which in turn may create
+     * users (people within the organization). Accounts can see and manipulate
+     * everything belonging to their account whereas users may only see and
+     * manipulate those resources of the account which they have been
+     * specifically granted permission for. So, for example, an account may list
+     * all buckets belonging to his account whereas users in contrast may not
+     * list buckets. Users must operate directly on the bucket they have been
+     * granted permission for and cannot access anything higher up in the
+     * hierarchy (e. g. the parent directory or path of the bucket "../").
+     *
+     * It seems as though Ceph and Minio only have a two-tiered approach to user
+     * management meaning I had to decide whether to create accounts or users. I
+     * chose to create accounts instead of users in order to prevent S3 clients
+     * from failing because their "listBuckets" calls fail.
+     *
+     * @return true when the account exists or is created, false otherwise
      */
     @Override
     public boolean createUser(long accountId, long storeId) {
         Account account = _accountDao.findById(accountId);
-        String newUser = account.getUuid();
+        String newAccountId = account.getUuid();
+        String newAccountName = account.getAccountName();
         Map<String, String> storeDetails = _storeDetailsDao.getDetails(storeId);
-        String endpointString = _storeDao.findById(storeId).getUrl(); // this URL cannot be used for "/poe/rest" because Huawei REST API interprets that as a bucket
+        String endpointString = _storeDao.findById(storeId).getUrl(); // this URL cannot be used for "/poe/rest" because Huawei REST API interprets "/poe" as a bucket
         URI endpointUri = URI.create(endpointString);
         String hostPort = endpointUri.getHost() + ":" + endpointUri.getPort();
         String endpoint = endpointUri.getPath();
         hostPort = "poe-obs.scsynergy.net:9443";
         endpoint = "/poe/rest";
-        String clientAccessKey = storeDetails.get(ACCESS_KEY);
-        String clientSecretKey = storeDetails.get(SECRET_KEY);
+        String clientAccessKey = storeDetails.get(OBJECT_STORE_ACCESS_KEY);
+        String clientSecretKey = storeDetails.get(OBJECT_STORE_SECRET_KEY);
 
         try {
             HttpClient httpClient = getHttpClient();
-            URI createUserUri = new URI(getRequestString("CreateUser", null, hostPort, endpoint, clientAccessKey, clientSecretKey, newUser));
-            HttpRequest request = HttpRequest.newBuilder(createUserUri)
+            URI createAccountUri = new URI(getRequestString("CreateUser", hostPort, endpoint, clientAccessKey, clientSecretKey, newAccountId, newAccountName));
+            HttpRequest request = HttpRequest.newBuilder(createAccountUri)
                     .GET()
                     .version(HttpClient.Version.HTTP_2)
                     .timeout(Duration.ofSeconds(30))
                     .build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 200) {
-                URI createAccessKey = new URI(getRequestString("CreateAccessKey", null, hostPort, endpoint, clientAccessKey, clientSecretKey, newUser));
+                URI createAccessKeyUri = new URI(getRequestString("CreateAccessKey", hostPort, endpoint, clientAccessKey, clientSecretKey, newAccountId, newAccountName));
                 HttpRequest createAccessKeyRequest = HttpRequest.newBuilder()
-                        .uri(createAccessKey)
+                        .uri(createAccessKeyUri)
                         .GET()
                         .version(HttpClient.Version.HTTP_2)
                         .timeout(Duration.ofSeconds(30))
@@ -592,63 +596,61 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                         .getJSONObject("CreateAccessKeyResponse")
                         .getJSONObject("CreateAccessKeyResult")
                         .getJSONObject("AccessKey");
-                String ak = createdAccessKey.getString("AccessKeyId");
-                String sk = createdAccessKey.getString("SecretAccessKey");
-                // Store user credentials
-                Map<String, String> details = new HashMap<>();
-                details.put(OBS_ACCESS_KEY, ak);
-                details.put(OBS_SECRET_KEY, sk);
-                _accountDetailsDao.persist(accountId, details);
-                return true;
+                int accId = createdAccessKey.getInt("AccountId");
+                if (Integer.parseInt(newAccountId) == accId) {
+                    String ak = createdAccessKey.getString("AccessKeyId");
+                    String sk = createdAccessKey.getString("SecretAccessKey");
+                    // Store user credentials
+                    Map<String, String> details = new HashMap<>();
+                    details.put(ACCOUNT_ACCESS_KEY, ak);
+                    details.put(ACCOUNT_SECRET_KEY, sk);
+                    _accountDetailsDao.persist(accountId, details);
+                    return true;
+                }
             } else if (response.statusCode() == 409) {
-                logger.debug("Skipping user creation as the user already exists in Huawei OBS store: " + newUser);
+                logger.debug("Skipping account creation as the account ID already exists in Huawei OBS store: " + newAccountId);
                 return true;
             }
         } catch (NoSuchAlgorithmException | KeyManagementException | InvalidKeyException | URISyntaxException | IOException | InterruptedException ex) {
-            logger.debug("Failed to create Huawei OBS user " + newUser, ex);
             throw new CloudRuntimeException(ex);
         }
         return false;
     }
 
-    private Map<String, String> getParameters(String action, String accessKeyId, String accessKey, String username) {
+    private Map<String, String> getParameters(String action, String poeAccessKeyId, String accountId, String accountName) {
         Map<String, String> parameters = new HashMap<>();
         parameters.put("Action", action);
-        if (accessKeyId != null && !accessKeyId.isBlank()) {
-            parameters.put("AccessKeyId", accessKeyId);
+        parameters.put("AccountId", accountId);
+        if ("CreateAccount".equals(action)) {
+            parameters.put("AccountName", accountName);
         }
-        parameters.put("POEAccessKeyId", accessKey);
+        parameters.put("POEAccessKeyId", poeAccessKeyId);
         parameters.put("SignatureMethod", SIGNATURE_METHOD);
         parameters.put("SignatureVersion", SIGNATURE_VERSION);
         SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
         df.setTimeZone(TimeZone.getTimeZone("UTC"));
         String timestamp = df.format(new Date());
         parameters.put("Timestamp", timestamp);
-        if (username != null && !username.isBlank()) {
-            parameters.put("UserName", username);
-        }
         return parameters;
     }
 
-    private String getRequestString(String action, String accessKeyId, String hostPort, String endpoint, String accessKey, String secretKey, String username) throws UnsupportedEncodingException, InvalidKeyException, NoSuchAlgorithmException {
-        Map<String, String> signParameters = getParameters(action, accessKeyId, accessKey, username);
+    private String getRequestString(String action, String hostPort, String endpoint, String poeAccessKeyId, String poeAccessKeySecret, String accountId, String accountName) throws UnsupportedEncodingException, InvalidKeyException, NoSuchAlgorithmException {
+        Map<String, String> signParameters = getParameters(action, poeAccessKeyId, accountId, accountName);
         StringBuilder requestString = new StringBuilder();
         requestString.append("https://").append(hostPort);
         requestString.append(urlEncode(endpoint, true));
         requestString.append('?');
         requestString.append("Action=").append(urlEncode(signParameters.get("Action"), false));
-        if (accessKeyId != null && !accessKeyId.isBlank()) {
-            requestString.append("&").append("AccessKeyId=").append(urlEncode(signParameters.get("AccessKeyId"), false));
+        requestString.append("&").append("AccountId=").append(urlEncode(signParameters.get("AccountId"), false));
+        if ("CreateAccount".equals(action)) {
+            requestString.append("&").append("AccountName=").append(urlEncode(signParameters.get("AccountName"), false));
         }
         requestString.append("&").append("POEAccessKeyId=").append(urlEncode(signParameters.get("POEAccessKeyId"), false));
         requestString.append("&").append("SignatureMethod=").append(urlEncode(signParameters.get("SignatureMethod"), false));
         requestString.append("&").append("SignatureVersion=").append(urlEncode(signParameters.get("SignatureVersion"), false));
         requestString.append("&").append("Timestamp=").append(urlEncode(signParameters.get("Timestamp"), false));
-        if (signParameters.get("UserName") != null) {
-            requestString.append("&").append("UserName=").append(urlEncode(signParameters.get("UserName"), false));
-        }
         requestString.append("&").append("Signature=");
-        String signature = sign("GET", hostPort, endpoint, signParameters, secretKey);
+        String signature = sign("GET", hostPort, endpoint, signParameters, poeAccessKeySecret);
         signature = urlEncode(signature, false);
         requestString.append(signature);
         return requestString.toString();
