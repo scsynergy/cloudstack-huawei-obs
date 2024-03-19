@@ -41,6 +41,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.Charset;
 import java.security.InvalidKeyException;
 import java.security.KeyManagementException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.cert.CertificateException;
@@ -48,6 +49,7 @@ import java.security.cert.X509Certificate;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import org.apache.cloudstack.engine.subsystem.api.storage.DataStore;
 import org.apache.cloudstack.storage.datastore.db.ObjectStoreDao;
@@ -97,6 +99,43 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
     private static final String SIGNATURE_METHOD = "HmacSHA1";
     private static final String SIGNATURE_VERSION = "2";
     private static final String CHARSET_UTF_8 = "UTF-8";
+    private static final TrustManager TRUST_ANY_CERTIFICATE = new X509ExtendedTrustManager() {
+        @Override
+        public X509Certificate[] getAcceptedIssuers() {
+            return null;
+        }
+
+        @Override
+        public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {
+            // do nothing
+        }
+
+        @Override
+        public void checkClientTrusted(X509Certificate[] chain, String authType, SSLEngine engine) throws CertificateException {
+            // do nothing
+        }
+
+        @Override
+        public void checkClientTrusted(X509Certificate[] chain, String authType, Socket socket) throws CertificateException {
+            // do nothing
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
+            // do nothing
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] chain, String authType, SSLEngine engine) throws CertificateException {
+            // do nothing
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] chain, String authType, Socket socket) throws CertificateException {
+            // do nothing
+        }
+    };
+    private static final TrustManager[] TRUST_ANY_CERTIFICATES = new TrustManager[]{TRUST_ANY_CERTIFICATE};
     protected final Logger logger = Logger.getLogger(HuaweiObsObjectStoreDriverImpl.class.getName());
 
     @Override
@@ -133,6 +172,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             bucketVO.setAccessKey(accountAccessKey);
             bucketVO.setSecretKey(accountSecretKey);
             _bucketDao.update(bucket.getId(), bucketVO);
+            cors(bucketName, accountAccessKey, accountSecretKey);
             return bucket;
         } catch (Exception ex) {
             throw new CloudRuntimeException(ex);
@@ -714,41 +754,69 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         return httpClient;
     }
 
-    private static final TrustManager TRUST_ANY_CERTIFICATE = new X509ExtendedTrustManager() {
-        @Override
-        public X509Certificate[] getAcceptedIssuers() {
-            return null;
-        }
+    private void cors(String bucketName, String accountAccessKey, String accountSecretKey) {
+        try {
+            String body = "<?xml version=\"1.0\" encoding=\"UTF-8\"?> \n"
+                    + "<CORSConfiguration> \n"
+                    + "  <CORSRule> \n"
+                    + "    <AllowedMethod>POST</AllowedMethod> \n"
+                    + "    <AllowedMethod>GET</AllowedMethod> \n"
+                    + "    <AllowedMethod>HEAD</AllowedMethod>\n"
+                    + "    <AllowedMethod>PUT</AllowedMethod> \n"
+                    + "    <AllowedMethod>DELETE</AllowedMethod> \n"
+                    + "    <AllowedOrigin>*</AllowedOrigin> \n"
+                    + "    <MaxAgeSeconds>-1</MaxAgeSeconds> \n"
+                    + "  </CORSRule> \n"
+                    + "</CORSConfiguration>";
+            byte[] md5 = MessageDigest.getInstance("MD5").digest(body.getBytes(CHARSET_UTF_8));
+            String base64MD5 = java.util.Base64.getEncoder().encodeToString(md5);
 
-        @Override
-        public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {
-            // do nothing
-        }
+            String timestamp = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss zzz"));
+            StringBuilder data = new StringBuilder()
+                    .append("PUT")
+                    .append("\n")
+                    .append(base64MD5)
+                    .append("\n")
+                    .append("application/xml")
+                    .append("\n")
+                    .append(timestamp)
+                    .append("\n")
+                    .append("/").append(bucketName).append("/")
+                    .append('?').append("cors");
+            Mac mac = Mac.getInstance("HmacSHA1");
+            mac.init(new SecretKeySpec(accountSecretKey.getBytes(CHARSET_UTF_8), "HmacSHA1"));
+            String signature = java.util.Base64.getEncoder().encodeToString(mac.doFinal(data.toString().getBytes(CHARSET_UTF_8)));
 
-        @Override
-        public void checkClientTrusted(X509Certificate[] chain, String authType, SSLEngine engine) throws CertificateException {
-            // do nothing
-        }
+            StringBuilder requestStringBuilder = new StringBuilder()
+                    .append("https://").append(bucketName).append(".obs.scsynergy.net")
+                    .append('?').append("cors");
+            URI corsUri = new URI(requestStringBuilder.toString());
+            HttpRequest request = HttpRequest.newBuilder(corsUri)
+                    .PUT(HttpRequest.BodyPublishers.ofString(body))
+                    .setHeader("Authorization", "OBS " + accountAccessKey + ":" + signature)
+                    .setHeader("Content-MD5", base64MD5)
+                    .setHeader("Content-Type", "application/xml")
+                    .setHeader("Date", timestamp)
+                    .version(HttpClient.Version.HTTP_2)
+                    .timeout(Duration.ofSeconds(30))
+                    .build();
 
-        @Override
-        public void checkClientTrusted(X509Certificate[] chain, String authType, Socket socket) throws CertificateException {
-            // do nothing
-        }
+            System.err.println(request.uri());
+            request.headers().map().entrySet().forEach(System.err::println);
 
-        @Override
-        public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
-            // do nothing
-        }
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, TRUST_ANY_CERTIFICATES, new SecureRandom());
+            HttpClient httpClient = HttpClient.newBuilder()
+                    .sslContext(sslContext)
+                    .connectTimeout(Duration.ofSeconds(10))
+                    .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
-        @Override
-        public void checkServerTrusted(X509Certificate[] chain, String authType, SSLEngine engine) throws CertificateException {
-            // do nothing
+            System.err.println(response.statusCode());
+            System.err.println(response.body());
+            response.headers().map().entrySet().forEach(System.err::println);
+        } catch (InvalidKeyException | NoSuchAlgorithmException | KeyManagementException | URISyntaxException | IOException | InterruptedException ex) {
+            throw new CloudRuntimeException(ex);
         }
-
-        @Override
-        public void checkServerTrusted(X509Certificate[] chain, String authType, Socket socket) throws CertificateException {
-            // do nothing
-        }
-    };
-    private static final TrustManager[] TRUST_ANY_CERTIFICATES = new TrustManager[]{TRUST_ANY_CERTIFICATE};
+    }
 }
