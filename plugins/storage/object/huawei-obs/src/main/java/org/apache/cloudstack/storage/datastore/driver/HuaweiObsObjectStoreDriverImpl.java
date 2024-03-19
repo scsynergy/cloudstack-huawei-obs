@@ -600,9 +600,14 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
      */
     @Override
     public boolean createUser(long accountId, long storeId) {
+//        return account(accountId, storeId);
+        return user(accountId, storeId);
+    }
+
+    private boolean user(long accountId, long storeId) {
         Account account = _accountDao.findById(accountId);
-        String newAccountId = account.getUuid();
-        String newAccountName = account.getAccountName();
+        String userId = account.getUuid();
+        String userName = account.getAccountName();
         Map<String, String> storeDetails = _storeDetailsDao.getDetails(storeId);
         String endpointString = _storeDao.findById(storeId).getUrl(); // this URL cannot be used for "/poe/rest" because Huawei REST API interprets "/poe" as a bucket
         URI endpointUri = URI.create(endpointString);
@@ -612,10 +617,9 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         endpoint = "/poe/rest";
         String clientAccessKey = storeDetails.get(OBJECT_STORE_ACCESS_KEY);
         String clientSecretKey = storeDetails.get(OBJECT_STORE_SECRET_KEY);
-
         try {
             HttpClient httpClient = getHttpClient();
-            URI createAccountUri = new URI(getRequestString("CreateAccount", hostPort, endpoint, clientAccessKey, clientSecretKey, newAccountId, newAccountName));
+            URI createAccountUri = new URI(userRequestString("CreateUser", hostPort, endpoint, clientAccessKey, clientSecretKey, userId, userName));
             HttpRequest request = HttpRequest.newBuilder(createAccountUri)
                     .GET()
                     .version(HttpClient.Version.HTTP_2)
@@ -623,7 +627,13 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 200) {
-                URI createAccessKeyUri = new URI(getRequestString("CreateAccessKey", hostPort, endpoint, clientAccessKey, clientSecretKey, newAccountId, newAccountName));
+                JSONObject jsonXml = XML.toJSONObject(response.body());
+                JSONObject createdUser = jsonXml
+                        .getJSONObject("CreateUserResponse")
+                        .getJSONObject("CreateUserResult")
+                        .getJSONObject("User");
+                userId = createdUser.getString("UserId");
+                URI createAccessKeyUri = new URI(userRequestString("CreateAccessKey", hostPort, endpoint, clientAccessKey, clientSecretKey, userId, userName));
                 HttpRequest createAccessKeyRequest = HttpRequest.newBuilder()
                         .uri(createAccessKeyUri)
                         .GET()
@@ -631,13 +641,13 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                         .timeout(Duration.ofSeconds(30))
                         .build();
                 response = httpClient.send(createAccessKeyRequest, HttpResponse.BodyHandlers.ofString());
-                JSONObject jsonXml = XML.toJSONObject(response.body());
+                jsonXml = XML.toJSONObject(response.body());
                 JSONObject createdAccessKey = jsonXml
                         .getJSONObject("CreateAccessKeyResponse")
                         .getJSONObject("CreateAccessKeyResult")
                         .getJSONObject("AccessKey");
-                int accId = createdAccessKey.getInt("AccountId");
-                if (Integer.parseInt(newAccountId) == accId) {
+                String userame = createdAccessKey.getString("UserName");
+                if (userName.equals(userame)) {
                     String ak = createdAccessKey.getString("AccessKeyId");
                     String sk = createdAccessKey.getString("SecretAccessKey");
                     // Store user credentials
@@ -648,7 +658,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     return true;
                 }
             } else if (response.statusCode() == 409) {
-                logger.debug("Skipping account creation as the account ID already exists in Huawei OBS store: " + newAccountId);
+                logger.debug("Skipping user creation as the user ID already exists in Huawei OBS store: " + userId);
                 return true;
             }
         } catch (NoSuchAlgorithmException | KeyManagementException | InvalidKeyException | URISyntaxException | IOException | InterruptedException ex) {
@@ -657,12 +667,44 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         return false;
     }
 
-    private Map<String, String> getParameters(String action, String poeAccessKeyId, String accountId, String accountName) {
-        Map<String, String> parameters = new HashMap<>();
+    private String userRequestString(String action, String hostPort, String endpoint, String poeAccessKeyId, String poeAccessKeySecret, String userId, String userName) throws UnsupportedEncodingException, InvalidKeyException, NoSuchAlgorithmException {
+        Map<String, String> signParameters = parameters(action, poeAccessKeyId, null, null, userId, userName);
+        StringBuilder requestString = new StringBuilder();
+        requestString.append("https://").append(hostPort);
+        requestString.append(urlEncode(endpoint, true));
+        requestString.append('?');
+        requestString.append("Action=").append(urlEncode(signParameters.get("Action"), false));
+        if (userId != null && !userId.isBlank()) {
+            requestString.append("&").append("AccessKeyId=").append(urlEncode(signParameters.get("AccessKeyId"), false));
+        }
+        requestString.append("&").append("POEAccessKeyId=").append(urlEncode(signParameters.get("POEAccessKeyId"), false));
+        requestString.append("&").append("SignatureMethod=").append(urlEncode(signParameters.get("SignatureMethod"), false));
+        requestString.append("&").append("SignatureVersion=").append(urlEncode(signParameters.get("SignatureVersion"), false));
+        requestString.append("&").append("Timestamp=").append(urlEncode(signParameters.get("Timestamp"), false));
+        if (userName != null && !userName.isBlank()) {
+            requestString.append("&").append("UserName=").append(urlEncode(signParameters.get("UserName"), false));
+        }
+        requestString.append("&").append("Signature=");
+        String signature = sign("GET", hostPort, endpoint, signParameters, poeAccessKeySecret);
+        signature = urlEncode(signature, false);
+        requestString.append(signature);
+        return requestString.toString();
+    }
+
+    private Map<String, String> parameters(String action, String poeAccessKeyId, String accountId, String accountName, String userId, String userName) {
+        SortedMap<String, String> parameters = new TreeMap<>();
         parameters.put("Action", action);
-        parameters.put("AccountId", accountId);
-        if ("CreateAccount".equals(action)) {
+        if (accountId != null && !accountId.isBlank()) {
+            parameters.put("AccountId", accountId);
+        }
+        if ("CreateAccount".equals(action) && accountName != null && !accountName.isBlank()) {
             parameters.put("AccountName", accountName);
+        }
+        if (userId != null && !userId.isBlank()) {
+            parameters.put("AccessKeyId", userId);
+        }
+        if (userName != null && !userName.isBlank()) {
+            parameters.put("UserName", userName);
         }
         parameters.put("POEAccessKeyId", poeAccessKeyId);
         parameters.put("SignatureMethod", SIGNATURE_METHOD);
@@ -672,28 +714,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         String timestamp = df.format(new Date());
         parameters.put("Timestamp", timestamp);
         return parameters;
-    }
-
-    private String getRequestString(String action, String hostPort, String endpoint, String poeAccessKeyId, String poeAccessKeySecret, String accountId, String accountName) throws UnsupportedEncodingException, InvalidKeyException, NoSuchAlgorithmException {
-        Map<String, String> signParameters = getParameters(action, poeAccessKeyId, accountId, accountName);
-        StringBuilder requestString = new StringBuilder();
-        requestString.append("https://").append(hostPort);
-        requestString.append(urlEncode(endpoint, true));
-        requestString.append('?');
-        requestString.append("Action=").append(urlEncode(signParameters.get("Action"), false));
-        requestString.append("&").append("AccountId=").append(urlEncode(signParameters.get("AccountId"), false));
-        if ("CreateAccount".equals(action)) {
-            requestString.append("&").append("AccountName=").append(urlEncode(signParameters.get("AccountName"), false));
-        }
-        requestString.append("&").append("POEAccessKeyId=").append(urlEncode(signParameters.get("POEAccessKeyId"), false));
-        requestString.append("&").append("SignatureMethod=").append(urlEncode(signParameters.get("SignatureMethod"), false));
-        requestString.append("&").append("SignatureVersion=").append(urlEncode(signParameters.get("SignatureVersion"), false));
-        requestString.append("&").append("Timestamp=").append(urlEncode(signParameters.get("Timestamp"), false));
-        requestString.append("&").append("Signature=");
-        String signature = sign("GET", hostPort, endpoint, signParameters, poeAccessKeySecret);
-        signature = urlEncode(signature, false);
-        requestString.append(signature);
-        return requestString.toString();
     }
 
     public String urlEncode(String value, boolean path) {
@@ -715,33 +735,27 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         data.append(urlEncode(uri, true)).append("\n");
         data.append(getCanonicalizedQueryString(signParameters));
         String stringToSign = data.toString();
-        return sign(stringToSign.getBytes(CHARSET_UTF_8), secretKey, SIGNATURE_METHOD);
+        Mac mac = Mac.getInstance(SIGNATURE_METHOD);
+        mac.init(new SecretKeySpec(secretKey.getBytes(Charset.defaultCharset()), SIGNATURE_METHOD));
+        byte[] signature = Base64.encodeBase64(mac.doFinal(stringToSign.getBytes(CHARSET_UTF_8)));
+        return new String(signature, Charset.defaultCharset());
     }
 
     private String getCanonicalizedQueryString(Map<String, String> parameters) {
-        SortedMap<String, String> sorted = new TreeMap<>();
-        sorted.putAll(parameters);
         StringBuilder builder = new StringBuilder();
-        Iterator<Map.Entry<String, String>> pairs = sorted.entrySet().iterator();
-        while (pairs.hasNext()) {
-            Map.Entry<String, String> pair = pairs.next();
-            String key = pair.getKey();
-            String value = pair.getValue();
+        Iterator<Map.Entry<String, String>> entries = parameters.entrySet().iterator();
+        while (entries.hasNext()) {
+            Map.Entry<String, String> entry = entries.next();
+            String key = entry.getKey();
+            String value = entry.getValue();
             builder.append(urlEncode(key, false));
             builder.append("=");
             builder.append(urlEncode(value, false));
-            if (pairs.hasNext()) {
+            if (entries.hasNext()) {
                 builder.append("&");
             }
         }
         return builder.toString();
-    }
-
-    private String sign(byte[] data, String key, String algorithm) throws NoSuchAlgorithmException, InvalidKeyException {
-        Mac mac = Mac.getInstance(algorithm);
-        mac.init(new SecretKeySpec(key.getBytes(Charset.defaultCharset()), algorithm));
-        byte[] signature = Base64.encodeBase64(mac.doFinal(data));
-        return new String(signature, Charset.defaultCharset());
     }
 
     private HttpClient getHttpClient() throws NoSuchAlgorithmException, KeyManagementException {
@@ -756,21 +770,20 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
 
     private void cors(String bucketName, String accountAccessKey, String accountSecretKey) {
         try {
-            String body = "<?xml version=\"1.0\" encoding=\"UTF-8\"?> \n"
-                    + "<CORSConfiguration> \n"
-                    + "  <CORSRule> \n"
-                    + "    <AllowedMethod>POST</AllowedMethod> \n"
-                    + "    <AllowedMethod>GET</AllowedMethod> \n"
+            String body = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                    + "<CORSConfiguration>\n"
+                    + "  <CORSRule>\n"
+                    + "    <AllowedMethod>POST</AllowedMethod>\n"
+                    + "    <AllowedMethod>GET</AllowedMethod>\n"
                     + "    <AllowedMethod>HEAD</AllowedMethod>\n"
-                    + "    <AllowedMethod>PUT</AllowedMethod> \n"
-                    + "    <AllowedMethod>DELETE</AllowedMethod> \n"
-                    + "    <AllowedOrigin>*</AllowedOrigin> \n"
-                    + "    <MaxAgeSeconds>-1</MaxAgeSeconds> \n"
-                    + "  </CORSRule> \n"
+                    + "    <AllowedMethod>PUT</AllowedMethod>\n"
+                    + "    <AllowedMethod>DELETE</AllowedMethod>\n"
+                    + "    <AllowedOrigin>*</AllowedOrigin>\n"
+                    + "    <MaxAgeSeconds>-1</MaxAgeSeconds>\n"
+                    + "  </CORSRule>\n"
                     + "</CORSConfiguration>";
             byte[] md5 = MessageDigest.getInstance("MD5").digest(body.getBytes(CHARSET_UTF_8));
             String base64MD5 = java.util.Base64.getEncoder().encodeToString(md5);
-
             String timestamp = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss zzz"));
             StringBuilder data = new StringBuilder()
                     .append("PUT")
@@ -786,7 +799,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             Mac mac = Mac.getInstance("HmacSHA1");
             mac.init(new SecretKeySpec(accountSecretKey.getBytes(CHARSET_UTF_8), "HmacSHA1"));
             String signature = java.util.Base64.getEncoder().encodeToString(mac.doFinal(data.toString().getBytes(CHARSET_UTF_8)));
-
             StringBuilder requestStringBuilder = new StringBuilder()
                     .append("https://").append(bucketName).append(".obs.scsynergy.net")
                     .append('?').append("cors");
@@ -800,23 +812,108 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .version(HttpClient.Version.HTTP_2)
                     .timeout(Duration.ofSeconds(30))
                     .build();
-
-            System.err.println(request.uri());
-            request.headers().map().entrySet().forEach(System.err::println);
-
             SSLContext sslContext = SSLContext.getInstance("TLS");
             sslContext.init(null, TRUST_ANY_CERTIFICATES, new SecureRandom());
             HttpClient httpClient = HttpClient.newBuilder()
                     .sslContext(sslContext)
                     .connectTimeout(Duration.ofSeconds(10))
                     .build();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
-            System.err.println(response.statusCode());
-            System.err.println(response.body());
-            response.headers().map().entrySet().forEach(System.err::println);
+            httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         } catch (InvalidKeyException | NoSuchAlgorithmException | KeyManagementException | URISyntaxException | IOException | InterruptedException ex) {
             throw new CloudRuntimeException(ex);
         }
+    }
+
+    /**
+     * For future use if we want to switch back to creating accounts.
+     */
+    private boolean account(long accountId, long storeId) {
+        Account account = _accountDao.findById(accountId);
+        String accountID = account.getUuid();
+        String accountName = account.getAccountName();
+        Map<String, String> storeDetails = _storeDetailsDao.getDetails(storeId);
+        String endpointString = _storeDao.findById(storeId).getUrl(); // this URL cannot be used for "/poe/rest" because Huawei REST API interprets "/poe" as a bucket
+        URI endpointUri = URI.create(endpointString);
+        String hostPort = endpointUri.getHost() + ":" + endpointUri.getPort();
+        String endpoint = endpointUri.getPath();
+        hostPort = "poe-obs.scsynergy.net:9443";
+        endpoint = "/poe/rest";
+        String clientAccessKey = storeDetails.get(OBJECT_STORE_ACCESS_KEY);
+        String clientSecretKey = storeDetails.get(OBJECT_STORE_SECRET_KEY);
+        try {
+            HttpClient httpClient = getHttpClient();
+            URI createAccountUri = new URI(accountRequestString("CreateAccount", hostPort, endpoint, clientAccessKey, clientSecretKey, accountID, accountName));
+            HttpRequest request = HttpRequest.newBuilder(createAccountUri)
+                    .GET()
+                    .version(HttpClient.Version.HTTP_2)
+                    .timeout(Duration.ofSeconds(30))
+                    .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 200) {
+                JSONObject jsonXml = XML.toJSONObject(response.body());
+                JSONObject createdAccount = jsonXml
+                        .getJSONObject("CreateAccountResponse")
+                        .getJSONObject("CreateAccountResult")
+                        .getJSONObject("Account");
+                int accountid = createdAccount.getInt("AccountId");
+                if (Integer.parseInt(accountID) == accountid) {
+                    URI createAccessKeyUri = new URI(accountRequestString("CreateAccessKey", hostPort, endpoint, clientAccessKey, clientSecretKey, accountID, accountName));
+                    HttpRequest createAccessKeyRequest = HttpRequest.newBuilder()
+                            .uri(createAccessKeyUri)
+                            .GET()
+                            .version(HttpClient.Version.HTTP_2)
+                            .timeout(Duration.ofSeconds(30))
+                            .build();
+                    response = httpClient.send(createAccessKeyRequest, HttpResponse.BodyHandlers.ofString());
+                    jsonXml = XML.toJSONObject(response.body());
+                    JSONObject createdAccessKey = jsonXml
+                            .getJSONObject("CreateAccessKeyResponse")
+                            .getJSONObject("CreateAccessKeyResult")
+                            .getJSONObject("AccessKey");
+                    accountid = createdAccessKey.getInt("AccountId");
+                    if (Integer.parseInt(accountID) == accountid) {
+                        String ak = createdAccessKey.getString("AccessKeyId");
+                        String sk = createdAccessKey.getString("SecretAccessKey");
+                        // Store user credentials
+                        Map<String, String> details = new HashMap<>();
+                        details.put(ACCOUNT_ACCESS_KEY, ak);
+                        details.put(ACCOUNT_SECRET_KEY, sk);
+                        _accountDetailsDao.persist(accountId, details);
+                        return true;
+                    }
+                }
+            } else if (response.statusCode() == 409) {
+                logger.debug("Skipping user creation as the user ID already exists in Huawei OBS store: " + accountID);
+                return true;
+            }
+        } catch (NoSuchAlgorithmException | KeyManagementException | InvalidKeyException | URISyntaxException | IOException | InterruptedException ex) {
+            throw new CloudRuntimeException(ex);
+        }
+        return false;
+    }
+
+    /**
+     * For future use if we want to switch back to creating accounts.
+     */
+    private String accountRequestString(String action, String hostPort, String endpoint, String poeAccessKeyId, String poeAccessKeySecret, String accountId, String accountName) throws UnsupportedEncodingException, InvalidKeyException, NoSuchAlgorithmException {
+        Map<String, String> signParameters = parameters(action, poeAccessKeyId, accountId, accountName, null, null);
+        StringBuilder requestString = new StringBuilder();
+        requestString.append("https://").append(hostPort);
+        requestString.append(urlEncode(endpoint, true));
+        requestString.append('?');
+        requestString.append("Action=").append(urlEncode(signParameters.get("Action"), false));
+        requestString.append("&").append("AccountId=").append(urlEncode(signParameters.get("AccountId"), false));
+        if ("CreateAccount".equals(action)) {
+            requestString.append("&").append("AccountName=").append(urlEncode(signParameters.get("AccountName"), false));
+        }
+        requestString.append("&").append("POEAccessKeyId=").append(urlEncode(signParameters.get("POEAccessKeyId"), false));
+        requestString.append("&").append("SignatureMethod=").append(urlEncode(signParameters.get("SignatureMethod"), false));
+        requestString.append("&").append("SignatureVersion=").append(urlEncode(signParameters.get("SignatureVersion"), false));
+        requestString.append("&").append("Timestamp=").append(urlEncode(signParameters.get("Timestamp"), false));
+        requestString.append("&").append("Signature=");
+        String signature = sign("GET", hostPort, endpoint, signParameters, poeAccessKeySecret);
+        signature = urlEncode(signature, false);
+        requestString.append(signature);
+        return requestString.toString();
     }
 }
