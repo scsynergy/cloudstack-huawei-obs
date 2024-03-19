@@ -615,7 +615,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
 
         try {
             HttpClient httpClient = getHttpClient();
-            URI createAccountUri = new URI(getRequestString("CreateUser", hostPort, endpoint, clientAccessKey, clientSecretKey, newAccountId, newAccountName));
+            URI createAccountUri = new URI(getRequestString("CreateAccount", hostPort, endpoint, clientAccessKey, clientSecretKey, newAccountId, newAccountName));
             HttpRequest request = HttpRequest.newBuilder(createAccountUri)
                     .GET()
                     .version(HttpClient.Version.HTTP_2)
