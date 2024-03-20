@@ -8,6 +8,7 @@ import com.cloud.user.AccountVO;
 import com.cloud.user.dao.AccountDao;
 import com.obs.services.ObsClient;
 import com.obs.services.model.CreateBucketRequest;
+import java.net.http.HttpClient;
 import org.apache.cloudstack.storage.datastore.db.ObjectStoreDao;
 import org.apache.cloudstack.storage.datastore.db.ObjectStoreDetailsDao;
 import org.apache.cloudstack.storage.datastore.db.ObjectStoreVO;
@@ -44,6 +45,8 @@ public class HuaweiObsObjectStoreDriverImplTest {
     AccountVO account;
     @Mock
     AccountDetailsDao accountDetailsDao;
+    @Mock
+    HttpClient httpClient;
 
     Bucket bucket;
     String bucketName = "test-bucket";
@@ -67,6 +70,8 @@ public class HuaweiObsObjectStoreDriverImplTest {
         Mockito.when(bucketDao.findById(Mockito.anyLong())).thenReturn(new BucketVO(0, 0, 0, bucketName, 100, false, false, false, "public"));
         Mockito.when(objectStoreVO.getUrl()).thenReturn("http://localhost:9000");
         Mockito.when(objectStoreDao.findById(Mockito.any())).thenReturn(objectStoreVO);
+        Mockito.doReturn(httpClient).when(huaweiObsObjectStoreDriverImpl).getHttpClient();
+        Mockito.doNothing().when(huaweiObsObjectStoreDriverImpl).cors(Mockito.anyString(), Mockito.anyString(), Mockito.anyString(), Mockito.anyString());
         Bucket bucketRet = huaweiObsObjectStoreDriverImpl.createBucket(bucket, false);
         assertEquals(bucketRet.getName(), bucket.getName());
         Mockito.verify(obsClient, Mockito.times(1)).headBucket(Mockito.anyString());

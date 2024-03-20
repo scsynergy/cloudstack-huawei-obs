@@ -762,7 +762,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         return builder.toString();
     }
 
-    private HttpClient getHttpClient() throws NoSuchAlgorithmException, KeyManagementException {
+    protected HttpClient getHttpClient() throws NoSuchAlgorithmException, KeyManagementException {
         SSLContext sslContext = SSLContext.getInstance("TLS");
         sslContext.init(null, TRUST_ANY_CERTIFICATES, new SecureRandom());
         HttpClient httpClient = HttpClient.newBuilder()
@@ -772,7 +772,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         return httpClient;
     }
 
-    private void cors(String bucketName, String accountAccessKey, String accountSecretKey, String endpoint) {
+    protected void cors(String bucketName, String accountAccessKey, String accountSecretKey, String endpoint) {
         try {
             String obs = new URI(endpoint).getHost();
             StringBuilder bodyBuilder = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
