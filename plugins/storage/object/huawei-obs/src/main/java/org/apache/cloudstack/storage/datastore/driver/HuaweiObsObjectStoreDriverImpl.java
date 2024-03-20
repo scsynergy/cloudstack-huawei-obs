@@ -31,6 +31,8 @@ import com.obs.services.model.SSEAlgorithmEnum;
 import com.obs.services.model.VersioningStatusEnum;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.net.Socket;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -60,6 +62,7 @@ import org.apache.cloudstack.storage.object.BucketObject;
 import org.apache.commons.codec.binary.Base64;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -172,7 +175,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             bucketVO.setAccessKey(accountAccessKey);
             bucketVO.setSecretKey(accountSecretKey);
             _bucketDao.update(bucket.getId(), bucketVO);
-            cors(bucketName, accountAccessKey, accountSecretKey);
+            cors(bucketName, accountAccessKey, accountSecretKey, endpoint);
             return bucket;
         } catch (Exception ex) {
             throw new CloudRuntimeException(ex);
@@ -619,8 +622,8 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         String clientSecretKey = storeDetails.get(OBJECT_STORE_SECRET_KEY);
         try {
             HttpClient httpClient = getHttpClient();
-            URI createAccountUri = new URI(userRequestString("CreateUser", hostPort, endpoint, clientAccessKey, clientSecretKey, userId, userName));
-            HttpRequest request = HttpRequest.newBuilder(createAccountUri)
+            URI createUserUri = new URI(userRequestString("CreateUser", hostPort, endpoint, clientAccessKey, clientSecretKey, userId, userName));
+            HttpRequest request = HttpRequest.newBuilder(createUserUri)
                     .GET()
                     .version(HttpClient.Version.HTTP_2)
                     .timeout(Duration.ofSeconds(30))
@@ -768,23 +771,38 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         return httpClient;
     }
 
-    private void cors(String bucketName, String accountAccessKey, String accountSecretKey) {
+    private void cors(String bucketName, String accountAccessKey, String accountSecretKey, String endpoint) {
         try {
-            String body = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                    + "<CORSConfiguration>\n"
-                    + "  <CORSRule>\n"
-                    + "    <AllowedMethod>POST</AllowedMethod>\n"
-                    + "    <AllowedMethod>GET</AllowedMethod>\n"
-                    + "    <AllowedMethod>HEAD</AllowedMethod>\n"
-                    + "    <AllowedMethod>PUT</AllowedMethod>\n"
-                    + "    <AllowedMethod>DELETE</AllowedMethod>\n"
-                    + "    <AllowedOrigin>192.168.17.52</AllowedOrigin>\n"
-                    + "    <MaxAgeSeconds>86400</MaxAgeSeconds>\n"
-                    + "    <AllowedHeader>Authorization</AllowedHeader>\n"
-                    + "    <ExposeHeader>Access-Control-Allow-Credentials</ExposeHeader>\n"
-                    + "    <ExposeHeader>Vary</ExposeHeader>\n"
-                    + "  </CORSRule>\n"
-                    + "</CORSConfiguration>";
+            String obs = new URI(endpoint).getHost();
+            StringBuilder bodyBuilder = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+                    .append("<CORSConfiguration>\n")
+                    .append("  <CORSRule>\n")
+                    .append("    <AllowedMethod>POST</AllowedMethod>\n")
+                    .append("    <AllowedMethod>GET</AllowedMethod>\n")
+                    .append("    <AllowedMethod>HEAD</AllowedMethod>\n")
+                    .append("    <AllowedMethod>PUT</AllowedMethod>\n")
+                    .append("    <AllowedMethod>DELETE</AllowedMethod>\n");
+            Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
+            while (networkInterfaces.hasMoreElements()) {
+                NetworkInterface networkInterface = networkInterfaces.nextElement();
+                if (networkInterface != null && networkInterface.isUp() && InetAddress.getByName(obs).isReachable(networkInterface, 0, 5000)) {
+                    Enumeration<InetAddress> iter = networkInterface.getInetAddresses();
+                    while (iter.hasMoreElements()) {
+                        InetAddress inetAddress = iter.nextElement();
+                        String oneMoreHostname = inetAddress.getCanonicalHostName().replaceAll("%.+$", "");
+                        bodyBuilder.append("    <AllowedOrigin>").append(oneMoreHostname).append("</AllowedOrigin>\n");
+                    }
+                }
+            }
+            bodyBuilder
+                    .append("    <MaxAgeSeconds>86400</MaxAgeSeconds>\n")
+                    //                    .append("    <AllowedHeader>Authorization</AllowedHeader>\n")
+                    //                    .append("    <ExposeHeader>Access-Control-Allow-Credentials</ExposeHeader>\n")
+                    //                    .append("    <ExposeHeader>Vary</ExposeHeader>\n")
+                    .append("  </CORSRule>\n")
+                    .append("</CORSConfiguration>");
+            String body = bodyBuilder.toString();
+            System.err.println(body);
             byte[] md5 = MessageDigest.getInstance("MD5").digest(body.getBytes(CHARSET_UTF_8));
             String base64MD5 = java.util.Base64.getEncoder().encodeToString(md5);
             String timestamp = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss zzz"));
@@ -803,9 +821,10 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             mac.init(new SecretKeySpec(accountSecretKey.getBytes(CHARSET_UTF_8), "HmacSHA1"));
             String signature = java.util.Base64.getEncoder().encodeToString(mac.doFinal(data.toString().getBytes(CHARSET_UTF_8)));
             StringBuilder requestStringBuilder = new StringBuilder()
-                    .append("https://").append(bucketName).append(".obs.scsynergy.net")
+                    .append("https://").append(bucketName).append(".").append(obs)
                     .append('?').append("cors");
             URI corsUri = new URI(requestStringBuilder.toString());
+            System.err.println("--> " + corsUri.toASCIIString());
             HttpRequest request = HttpRequest.newBuilder(corsUri)
                     .PUT(HttpRequest.BodyPublishers.ofString(body))
                     .setHeader("Authorization", "OBS " + accountAccessKey + ":" + signature)
