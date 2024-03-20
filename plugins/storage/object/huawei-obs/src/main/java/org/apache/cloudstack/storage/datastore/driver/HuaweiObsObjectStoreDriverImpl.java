@@ -178,7 +178,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             cors(bucketName, accountAccessKey, accountSecretKey, endpoint);
             return bucket;
         } catch (Exception ex) {
-            logger.info("create bucket test", ex);
+            ex.printStackTrace();
             throw new CloudRuntimeException(ex);
         }
     }
