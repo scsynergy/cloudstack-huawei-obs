@@ -812,13 +812,10 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .version(HttpClient.Version.HTTP_2)
                     .timeout(Duration.ofSeconds(30))
                     .build();
-            SSLContext sslContext = SSLContext.getInstance("TLS");
-            sslContext.init(null, TRUST_ANY_CERTIFICATES, new SecureRandom());
-            HttpClient httpClient = HttpClient.newBuilder()
-                    .sslContext(sslContext)
-                    .connectTimeout(Duration.ofSeconds(10))
-                    .build();
-            httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpClient httpClient = getHttpClient();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            System.err.println(response.statusCode());
+            System.err.println(response.body());
         } catch (InvalidKeyException | NoSuchAlgorithmException | KeyManagementException | URISyntaxException | IOException | InterruptedException ex) {
             throw new CloudRuntimeException(ex);
         }
