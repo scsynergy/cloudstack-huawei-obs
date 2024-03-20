@@ -65,6 +65,7 @@ public class HuaweiObsObjectStoreDriverImplTest {
         Mockito.when(accountDetailsDao.findDetail(Mockito.anyLong(), Mockito.anyString())).thenReturn(new AccountDetailVO(1L, "abc", "def"));
         Mockito.when(obsClient.headBucket(bucketName)).thenReturn(false);
         Mockito.when(bucketDao.findById(Mockito.anyLong())).thenReturn(new BucketVO(0, 0, 0, bucketName, 100, false, false, false, "public"));
+        Mockito.when(objectStoreVO.getUrl()).thenReturn("http://localhost:9000");
         Mockito.when(objectStoreDao.findById(Mockito.any())).thenReturn(objectStoreVO);
         Bucket bucketRet = huaweiObsObjectStoreDriverImpl.createBucket(bucket, false);
         assertEquals(bucketRet.getName(), bucket.getName());

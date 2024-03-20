@@ -796,11 +796,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             }
             bodyBuilder
                     .append("    <MaxAgeSeconds>86400</MaxAgeSeconds>\n")
-                    .append("    <AllowedHeader>Authorization</AllowedHeader>\n")
-                    .append("    <AllowedHeader>Access-Control-Allow-Credentials</AllowedHeader>\n")
-                    .append("    <ExposeHeader>Access-Control-Allow-Origin</ExposeHeader>\n")
-                    .append("    <ExposeHeader>Access-Control-Allow-Credentials</ExposeHeader>\n")
-//                    .append("    <ExposeHeader>Vary</ExposeHeader>\n")
+                    .append("    <AllowedHeader>*</AllowedHeader>\n")
                     .append("  </CORSRule>\n")
                     .append("</CORSConfiguration>");
             String body = bodyBuilder.toString();
