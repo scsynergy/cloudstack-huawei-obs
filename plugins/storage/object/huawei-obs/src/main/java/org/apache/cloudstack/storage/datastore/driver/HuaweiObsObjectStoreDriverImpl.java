@@ -778,8 +778,11 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     + "    <AllowedMethod>HEAD</AllowedMethod>\n"
                     + "    <AllowedMethod>PUT</AllowedMethod>\n"
                     + "    <AllowedMethod>DELETE</AllowedMethod>\n"
-                    + "    <AllowedOrigin>*</AllowedOrigin>\n"
-                    + "    <MaxAgeSeconds>-1</MaxAgeSeconds>\n"
+                    + "    <AllowedOrigin>192.168.17.52</AllowedOrigin>\n"
+                    + "    <MaxAgeSeconds>86400</MaxAgeSeconds>\n"
+                    + "    <AllowedHeader>Authorization</AllowedHeader>\n"
+                    + "    <ExposeHeader>Access-Control-Allow-Credentials</ExposeHeader>\n"
+                    + "    <ExposeHeader>Vary</ExposeHeader>\n"
                     + "  </CORSRule>\n"
                     + "</CORSConfiguration>";
             byte[] md5 = MessageDigest.getInstance("MD5").digest(body.getBytes(CHARSET_UTF_8));
