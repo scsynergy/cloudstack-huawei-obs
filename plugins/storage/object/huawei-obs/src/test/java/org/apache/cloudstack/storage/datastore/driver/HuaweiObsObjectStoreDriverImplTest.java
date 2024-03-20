@@ -8,7 +8,6 @@ import com.cloud.user.AccountVO;
 import com.cloud.user.dao.AccountDao;
 import com.obs.services.ObsClient;
 import com.obs.services.model.CreateBucketRequest;
-import java.net.http.HttpClient;
 import org.apache.cloudstack.storage.datastore.db.ObjectStoreDao;
 import org.apache.cloudstack.storage.datastore.db.ObjectStoreDetailsDao;
 import org.apache.cloudstack.storage.datastore.db.ObjectStoreVO;
@@ -45,8 +44,6 @@ public class HuaweiObsObjectStoreDriverImplTest {
     AccountVO account;
     @Mock
     AccountDetailsDao accountDetailsDao;
-    @Mock
-    HttpClient httpClient;
 
     Bucket bucket;
     String bucketName = "test-bucket";
