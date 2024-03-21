@@ -31,9 +31,13 @@ import com.obs.services.model.SSEAlgorithmEnum;
 import com.obs.services.model.VersioningStatusEnum;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.NetworkInterface;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
@@ -772,9 +776,38 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         return httpClient;
     }
 
+    private static boolean isReachable(NetworkInterface networkInterface, InetAddress localInetAddress, URI endpoint, int timeout) throws IOException {
+        if (localInetAddress.isLoopbackAddress() || localInetAddress.isAnyLocalAddress()) {
+            return false;
+        }
+        InetAddress remoteInetAddress = InetAddress.getByName(endpoint.getHost());
+        if (localInetAddress instanceof Inet4Address && remoteInetAddress instanceof Inet6Address || localInetAddress instanceof Inet6Address && remoteInetAddress instanceof Inet4Address) {
+            return false;
+        }
+        if (InetAddress.getByName(endpoint.getHost()).isReachable(networkInterface, 50, timeout)) {
+            return true;
+        }
+        int port = endpoint.getPort();
+        if (port == -1 && "HTTP".equalsIgnoreCase(endpoint.getScheme())) {
+            port = 80;
+        } else if (port == -1 && "HTTPS".equalsIgnoreCase(endpoint.getScheme())) {
+            port = 443;
+        } else if (port < 0) {
+            return false;
+        }
+        try (Socket clientSocket = new Socket()) {
+            clientSocket.setSoTimeout(timeout);
+            clientSocket.bind(new InetSocketAddress(localInetAddress, 0));
+            clientSocket.connect(new InetSocketAddress(remoteInetAddress, port), timeout);
+            return true;
+        } catch (SocketTimeoutException ex) {
+            return false;
+        }
+    }
+
     protected void cors(String bucketName, String accountAccessKey, String accountSecretKey, String endpoint) {
         try {
-            String obs = new URI(endpoint).getHost();
+            URI uri = new URI(endpoint);
             StringBuilder bodyBuilder = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
                     .append("<CORSConfiguration>\n")
                     .append("  <CORSRule>\n")
@@ -786,14 +819,14 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
             while (networkInterfaces.hasMoreElements()) {
                 NetworkInterface networkInterface = networkInterfaces.nextElement();
-                System.err.println(networkInterface.getDisplayName() + " ::: " + obs + " isisReachable: " + InetAddress.getByName(obs).isReachable(networkInterface, 50, 60000));
-                if (networkInterface != null && networkInterface.isUp() && InetAddress.getByName(obs).isReachable(networkInterface, 50, 60000)) {
+                if (networkInterface != null && networkInterface.isUp()) {
                     Enumeration<InetAddress> iter = networkInterface.getInetAddresses();
                     while (iter.hasMoreElements()) {
                         InetAddress inetAddress = iter.nextElement();
-                        System.err.println(inetAddress.getHostAddress() + " :::network inetAddress");
-                        String oneMoreHostname = inetAddress.getCanonicalHostName().replaceAll("%.+$", "");
-                        bodyBuilder.append("    <AllowedOrigin>").append(oneMoreHostname).append("</AllowedOrigin>\n");
+                        if (isReachable(networkInterface, inetAddress, uri, 5000)) {
+                            String validHost = inetAddress.getCanonicalHostName().replaceAll("%.+$", "");
+                            bodyBuilder.append("    <AllowedOrigin>").append(validHost).append("</AllowedOrigin>\n");
+                        }
                     }
                 }
             }
@@ -822,7 +855,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             mac.init(new SecretKeySpec(accountSecretKey.getBytes(CHARSET_UTF_8), "HmacSHA1"));
             String signature = java.util.Base64.getEncoder().encodeToString(mac.doFinal(data.toString().getBytes(CHARSET_UTF_8)));
             StringBuilder requestStringBuilder = new StringBuilder()
-                    .append("https://").append(bucketName).append(".").append(obs)
+                    .append("https://").append(bucketName).append(".").append(uri.getHost())
                     .append('?').append("cors");
             URI corsUri = new URI(requestStringBuilder.toString());
             System.err.println("--> " + corsUri.toASCIIString());
