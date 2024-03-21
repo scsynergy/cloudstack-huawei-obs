@@ -31,8 +31,6 @@ import com.obs.services.model.SSEAlgorithmEnum;
 import com.obs.services.model.VersioningStatusEnum;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.net.Inet4Address;
-import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.NetworkInterface;
@@ -780,10 +778,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         if (localInetAddress.isLoopbackAddress() || localInetAddress.isAnyLocalAddress()) {
             return false;
         }
-        InetAddress remoteInetAddress = InetAddress.getByName(endpoint.getHost());
-        if (localInetAddress instanceof Inet4Address && remoteInetAddress instanceof Inet6Address || localInetAddress instanceof Inet6Address && remoteInetAddress instanceof Inet4Address) {
-            return false;
-        }
         if (InetAddress.getByName(endpoint.getHost()).isReachable(networkInterface, 50, timeout)) {
             return true;
         }
@@ -798,7 +792,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         try (Socket clientSocket = new Socket()) {
             clientSocket.setSoTimeout(timeout);
             clientSocket.bind(new InetSocketAddress(localInetAddress, 0));
-            clientSocket.connect(new InetSocketAddress(remoteInetAddress, port), timeout);
+            clientSocket.connect(new InetSocketAddress(endpoint.getHost(), port), timeout);
             return true;
         } catch (SocketTimeoutException ex) {
             return false;
@@ -806,6 +800,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
     }
 
     protected void cors(String bucketName, String accountAccessKey, String accountSecretKey, String endpoint) {
+        System.err.println(accountAccessKey);
         try {
             URI uri = new URI(endpoint);
             StringBuilder bodyBuilder = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
@@ -824,8 +819,8 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     while (iter.hasMoreElements()) {
                         InetAddress inetAddress = iter.nextElement();
                         if (isReachable(networkInterface, inetAddress, uri, 5000)) {
-                            String validHost = inetAddress.getCanonicalHostName().replaceAll("%.+$", "");
-                            bodyBuilder.append("    <AllowedOrigin>").append(validHost).append("</AllowedOrigin>\n");
+                            String connectionsuccessful = inetAddress.getCanonicalHostName().replaceAll("%.+$", "");
+                            bodyBuilder.append("    <AllowedOrigin>").append(connectionsuccessful).append("</AllowedOrigin>\n");
                         }
                     }
                 }
