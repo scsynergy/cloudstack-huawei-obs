@@ -786,10 +786,12 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
             while (networkInterfaces.hasMoreElements()) {
                 NetworkInterface networkInterface = networkInterfaces.nextElement();
-                if (networkInterface != null && networkInterface.isUp() && InetAddress.getByName(obs).isReachable(networkInterface, 0, 5000)) {
+                System.err.println(networkInterface.getDisplayName() + " ::: " + obs + " isisReachable: " + InetAddress.getByName(obs).isReachable(networkInterface, 50, 60000));
+                if (networkInterface != null && networkInterface.isUp() && InetAddress.getByName(obs).isReachable(networkInterface, 50, 60000)) {
                     Enumeration<InetAddress> iter = networkInterface.getInetAddresses();
                     while (iter.hasMoreElements()) {
                         InetAddress inetAddress = iter.nextElement();
+                        System.err.println(inetAddress.getHostAddress() + " :::network inetAddress");
                         String oneMoreHostname = inetAddress.getCanonicalHostName().replaceAll("%.+$", "");
                         bodyBuilder.append("    <AllowedOrigin>").append(oneMoreHostname).append("</AllowedOrigin>\n");
                     }
