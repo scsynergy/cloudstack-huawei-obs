@@ -321,8 +321,10 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
      * Huawei's UI has three default policies to choose from: "private", "public
      * read-only" and "public read-write". Since the Cloudstack UI only offers
      * "private" and "public" in the dropdown I chose to map "public" to
-     * "public-read-write". Maybe in the future we can have the UI adapt the
-     * items in the dropdown depending on what provider is selected?
+     * "public-read-write" and "private" to "public read-only" and mapping the
+     * default empty dropdown selection to Huawei's "private" policy. Maybe in
+     * the future we can have the UI adapt the items in the dropdown depending
+     * on what provider is selected?
      *
      * @param bucketName
      * @param policy
@@ -330,9 +332,9 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
      */
     @Override
     public void setBucketPolicy(String bucketName, String policy, long storeId) {
-        if (policy == null || policy.equalsIgnoreCase("private")) {
+        if (policy == null) {
             return; // nothing needs to be done as this is the default for Huawei Object Storage
-        } else if (policy.equalsIgnoreCase("public-read-only")) {
+        } else if (policy.equalsIgnoreCase("private")) {
             String id = "Policy" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
             StringBuilder publicRead = new StringBuilder();
             publicRead.append("{\n");
