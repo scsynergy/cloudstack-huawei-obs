@@ -169,15 +169,15 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             obsClient.createBucket(createBucketRequest);
 
             BucketVO bucketVO = _bucketDao.findById(bucket.getId());
-            String accountAccessKey = _accountDetailsDao.findDetail(accountId, ACCOUNT_ACCESS_KEY).getValue();
-            String accountSecretKey = _accountDetailsDao.findDetail(accountId, ACCOUNT_SECRET_KEY).getValue();
+            String userAccessKey = _accountDetailsDao.findDetail(accountId, ACCOUNT_ACCESS_KEY).getValue();
+            String userSecretKey = _accountDetailsDao.findDetail(accountId, ACCOUNT_SECRET_KEY).getValue();
             String endpoint = _storeDao.findById(storeId).getUrl();
             // Cloudstack can only handle path mode (https://fqdn:port/bucketname) but neither domain mode (https://bucketname.fqdn:port) nor mixed mode (https://bucketname.fqdn:port/bucketname)
             bucketVO.setBucketURL(endpoint + "/" + bucketName);
-            bucketVO.setAccessKey(accountAccessKey);
-            bucketVO.setSecretKey(accountSecretKey);
+            bucketVO.setAccessKey(userAccessKey);
+            bucketVO.setSecretKey(userSecretKey);
             _bucketDao.update(bucket.getId(), bucketVO);
-            cors(bucketName, accountAccessKey, accountSecretKey, endpoint);
+            cors(bucketName, storeId, endpoint);
             return bucket;
         } catch (Exception ex) {
             ex.printStackTrace();
@@ -799,8 +799,11 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         }
     }
 
-    protected void cors(String bucketName, String accountAccessKey, String accountSecretKey, String endpoint) {
-        System.err.println(accountAccessKey);
+    protected void cors(String bucketName, long storeId, String endpoint) {
+        Map<String, String> storeDetails = _storeDetailsDao.getDetails(storeId);
+        String accountAccessKey = storeDetails.get(OBJECT_STORE_ACCESS_KEY);
+        String accountSecretKey = storeDetails.get(OBJECT_STORE_SECRET_KEY);
+        System.err.println(accountAccessKey + " --------------------------------------");
         try {
             URI uri = new URI(endpoint);
             StringBuilder bodyBuilder = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
