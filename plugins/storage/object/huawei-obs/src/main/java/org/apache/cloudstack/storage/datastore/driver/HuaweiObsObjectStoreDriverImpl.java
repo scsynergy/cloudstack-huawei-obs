@@ -796,7 +796,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             clientSocket.bind(new InetSocketAddress(localInetAddress, 0));
             clientSocket.connect(new InetSocketAddress(endpoint.getHost(), port), timeout);
             return true;
-        } catch (SocketTimeoutException ex) {
+        } catch (Exception ex) {
             return false;
         }
     }
