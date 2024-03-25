@@ -817,26 +817,12 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .append("    <AllowedMethod>GET</AllowedMethod>\n")
                     .append("    <AllowedMethod>HEAD</AllowedMethod>\n")
                     .append("    <AllowedMethod>PUT</AllowedMethod>\n")
-                    .append("    <AllowedMethod>DELETE</AllowedMethod>\n");
-            Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
-            while (networkInterfaces.hasMoreElements()) {
-                NetworkInterface networkInterface = networkInterfaces.nextElement();
-                if (networkInterface != null && networkInterface.isUp()) {
-                    Enumeration<InetAddress> iter = networkInterface.getInetAddresses();
-                    while (iter.hasMoreElements()) {
-                        InetAddress inetAddress = iter.nextElement();
-                        if (isReachable(networkInterface, inetAddress, uri, 5000)) {
-                            String connectionsuccessful = inetAddress.getCanonicalHostName().replaceAll("%.+$", "");
-                            bodyBuilder.append("    <AllowedOrigin>").append(connectionsuccessful).append("</AllowedOrigin>\n");
-                        }
-                    }
-                }
-            }
-            bodyBuilder
+                    .append("    <AllowedMethod>DELETE</AllowedMethod>\n")
+                    .append("    <AllowedOrigin>*</AllowedOrigin>\n")
                     .append("    <MaxAgeSeconds>86400</MaxAgeSeconds>\n")
                     .append("    <AllowedHeader>*</AllowedHeader>\n")
-                    .append("    <ExposeHeader>Access-Control-Allow-Origin</ExposeHeader>\n")
-                    .append("    <ExposeHeader>Vary</ExposeHeader>\n")
+//                    .append("    <ExposeHeader>Access-Control-Allow-Origin</ExposeHeader>\n")
+//                    .append("    <ExposeHeader>Vary</ExposeHeader>\n")
                     .append("  </CORSRule>\n")
                     .append("</CORSConfiguration>");
             String body = bodyBuilder.toString();
