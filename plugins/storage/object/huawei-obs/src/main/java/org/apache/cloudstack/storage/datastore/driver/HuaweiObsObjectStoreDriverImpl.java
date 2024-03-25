@@ -57,8 +57,8 @@ import org.apache.cloudstack.storage.datastore.db.ObjectStoreDetailsDao;
 import org.apache.cloudstack.storage.object.BaseObjectStoreDriverImpl;
 import org.apache.cloudstack.storage.object.Bucket;
 import org.apache.cloudstack.storage.object.BucketObject;
-import org.apache.commons.codec.binary.Base64;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -744,8 +744,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         String stringToSign = data.toString();
         Mac mac = Mac.getInstance(SIGNATURE_METHOD);
         mac.init(new SecretKeySpec(secretKey.getBytes(Charset.defaultCharset()), SIGNATURE_METHOD));
-        byte[] signature = Base64.encodeBase64(mac.doFinal(stringToSign.getBytes(CHARSET_UTF_8)));
-        return new String(signature, Charset.defaultCharset());
+        return Base64.getEncoder().encodeToString(mac.doFinal(stringToSign.getBytes(CHARSET_UTF_8)));
     }
 
     private String getCanonicalizedQueryString(Map<String, String> parameters) {
@@ -799,7 +798,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             String body = bodyBuilder.toString();
             System.err.println(body);
             byte[] md5 = MessageDigest.getInstance("MD5").digest(body.getBytes(CHARSET_UTF_8));
-            String base64MD5 = java.util.Base64.getEncoder().encodeToString(md5);
+            String base64MD5 = Base64.getEncoder().encodeToString(md5);
             String timestamp = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss zzz"));
             StringBuilder data = new StringBuilder()
                     .append("PUT")
@@ -814,7 +813,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .append('?').append("cors");
             Mac mac = Mac.getInstance("HmacSHA1");
             mac.init(new SecretKeySpec(accountSecretKey.getBytes(CHARSET_UTF_8), "HmacSHA1"));
-            String signature = java.util.Base64.getEncoder().encodeToString(mac.doFinal(data.toString().getBytes(CHARSET_UTF_8)));
+            String signature = Base64.getEncoder().encodeToString(mac.doFinal(data.toString().getBytes(CHARSET_UTF_8)));
             StringBuilder requestStringBuilder = new StringBuilder()
                     .append("https://").append(bucketName).append(".").append(uri.getHost())
                     .append('?').append("cors");
