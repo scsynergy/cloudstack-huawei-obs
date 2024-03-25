@@ -593,7 +593,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
      * everything belonging to their account whereas users may only see and
      * manipulate those resources of the account which they have been
      * specifically granted permission for. So, for example, an account may list
-     * all buckets belonging to his account whereas users in contrast may not
+     * all buckets belonging to its account whereas users in contrast may not
      * list buckets. Users must operate directly on the bucket they have been
      * granted permission for and cannot access anything higher up in the
      * hierarchy (e. g. the parent directory or path of the bucket "../").
@@ -601,7 +601,11 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
      * It seems as though Ceph and Minio only have a two-tiered approach to user
      * management meaning I had to decide whether to create accounts or users. I
      * chose to create accounts instead of users in order to prevent S3 clients
-     * from failing because their "listBuckets" calls fail.
+     * from failing because their "listBuckets" calls fail. But only one access
+     * key may be specified and when I use the "root admin" key - which can
+     * create accounts - then creating the object store fails because no account
+     * was specified for which the bucket was to be created. So, I had to revert
+     * back to creating users.
      *
      * @return true when the account exists or is created, false otherwise
      */
@@ -804,7 +808,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         Map<String, String> storeDetails = _storeDetailsDao.getDetails(storeId);
         String accountAccessKey = storeDetails.get(OBJECT_STORE_ACCESS_KEY);
         String accountSecretKey = storeDetails.get(OBJECT_STORE_SECRET_KEY);
-        System.err.println(accountAccessKey + " --------------------------------------");
         try {
             URI uri = new URI(endpoint);
             StringBuilder bodyBuilder = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
@@ -832,6 +835,8 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             bodyBuilder
                     .append("    <MaxAgeSeconds>86400</MaxAgeSeconds>\n")
                     .append("    <AllowedHeader>*</AllowedHeader>\n")
+                    .append("    <ExposeHeader>Access-Control-Allow-Origin</ExposeHeader>\n")
+                    .append("    <ExposeHeader>Vary</ExposeHeader>\n")
                     .append("  </CORSRule>\n")
                     .append("</CORSConfiguration>");
             String body = bodyBuilder.toString();
