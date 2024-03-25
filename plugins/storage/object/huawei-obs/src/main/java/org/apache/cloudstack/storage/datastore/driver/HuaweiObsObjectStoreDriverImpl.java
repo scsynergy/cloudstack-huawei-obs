@@ -31,9 +31,6 @@ import com.obs.services.model.SSEAlgorithmEnum;
 import com.obs.services.model.VersioningStatusEnum;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.NetworkInterface;
 import java.net.Socket;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -63,7 +60,6 @@ import org.apache.cloudstack.storage.object.BucketObject;
 import org.apache.commons.codec.binary.Base64;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -779,31 +775,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         return httpClient;
     }
 
-    private static boolean isReachable(NetworkInterface networkInterface, InetAddress localInetAddress, URI endpoint, int timeout) throws IOException {
-        if (localInetAddress.isLoopbackAddress() || localInetAddress.isAnyLocalAddress()) {
-            return false;
-        }
-        if (InetAddress.getByName(endpoint.getHost()).isReachable(networkInterface, 50, timeout)) {
-            return true;
-        }
-        int port = endpoint.getPort();
-        if (port == -1 && "HTTP".equalsIgnoreCase(endpoint.getScheme())) {
-            port = 80;
-        } else if (port == -1 && "HTTPS".equalsIgnoreCase(endpoint.getScheme())) {
-            port = 443;
-        } else if (port < 0) {
-            return false;
-        }
-        try (Socket clientSocket = new Socket()) {
-            clientSocket.setSoTimeout(timeout);
-            clientSocket.bind(new InetSocketAddress(localInetAddress, 0));
-            clientSocket.connect(new InetSocketAddress(endpoint.getHost(), port), timeout);
-            return true;
-        } catch (Exception ex) {
-            return false;
-        }
-    }
-
     protected void cors(String bucketName, long storeId, String endpoint) {
         Map<String, String> storeDetails = _storeDetailsDao.getDetails(storeId);
         String accountAccessKey = storeDetails.get(OBJECT_STORE_ACCESS_KEY);
@@ -821,8 +792,8 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .append("    <AllowedOrigin>*</AllowedOrigin>\n")
                     .append("    <MaxAgeSeconds>86400</MaxAgeSeconds>\n")
                     .append("    <AllowedHeader>*</AllowedHeader>\n")
-//                    .append("    <ExposeHeader>Access-Control-Allow-Origin</ExposeHeader>\n")
-//                    .append("    <ExposeHeader>Vary</ExposeHeader>\n")
+                    //                    .append("    <ExposeHeader>Access-Control-Allow-Origin</ExposeHeader>\n")
+                    //                    .append("    <ExposeHeader>Vary</ExposeHeader>\n")
                     .append("  </CORSRule>\n")
                     .append("</CORSConfiguration>");
             String body = bodyBuilder.toString();
