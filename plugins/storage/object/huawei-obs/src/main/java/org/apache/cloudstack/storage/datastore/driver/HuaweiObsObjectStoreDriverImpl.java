@@ -99,6 +99,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
     private static final String SIGNATURE_METHOD = "HmacSHA1";
     private static final String SIGNATURE_VERSION = "2";
     private static final String CHARSET_UTF_8 = "UTF-8";
+    private static HttpClient httpClient;
     private static final TrustManager TRUST_ANY_CERTIFICATE = new X509ExtendedTrustManager() {
         @Override
         public X509Certificate[] getAcceptedIssuers() {
@@ -625,14 +626,13 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         String clientAccessKey = storeDetails.get(OBJECT_STORE_ACCESS_KEY);
         String clientSecretKey = storeDetails.get(OBJECT_STORE_SECRET_KEY);
         try {
-            HttpClient httpClient = getHttpClient();
             URI createUserUri = new URI(userRequestString("CreateUser", hostPort, endpoint, clientAccessKey, clientSecretKey, userId, userName));
             HttpRequest request = HttpRequest.newBuilder(createUserUri)
                     .GET()
                     .version(HttpClient.Version.HTTP_2)
                     .timeout(Duration.ofSeconds(30))
                     .build();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 200) {
                 JSONObject jsonXml = XML.toJSONObject(response.body());
                 JSONObject createdUser = jsonXml
@@ -647,7 +647,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                         .version(HttpClient.Version.HTTP_2)
                         .timeout(Duration.ofSeconds(30))
                         .build();
-                response = httpClient.send(createAccessKeyRequest, HttpResponse.BodyHandlers.ofString());
+                response = getHttpClient().send(createAccessKeyRequest, HttpResponse.BodyHandlers.ofString());
                 jsonXml = XML.toJSONObject(response.body());
                 JSONObject createdAccessKey = jsonXml
                         .getJSONObject("CreateAccessKeyResponse")
@@ -765,12 +765,14 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
     }
 
     protected HttpClient getHttpClient() throws NoSuchAlgorithmException, KeyManagementException {
-        SSLContext sslContext = SSLContext.getInstance("TLS");
-        sslContext.init(null, TRUST_ANY_CERTIFICATES, new SecureRandom());
-        HttpClient httpClient = HttpClient.newBuilder()
-                .sslContext(sslContext)
-                .connectTimeout(Duration.ofSeconds(10))
-                .build();
+        if (httpClient == null) {
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, TRUST_ANY_CERTIFICATES, new SecureRandom());
+            httpClient = HttpClient.newBuilder()
+                    .sslContext(sslContext)
+                    .connectTimeout(Duration.ofSeconds(10))
+                    .build();
+        }
         return httpClient;
     }
 
@@ -796,7 +798,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .append("  </CORSRule>\n")
                     .append("</CORSConfiguration>");
             String body = bodyBuilder.toString();
-            System.err.println(body);
             byte[] md5 = MessageDigest.getInstance("MD5").digest(body.getBytes(CHARSET_UTF_8));
             String base64MD5 = Base64.getEncoder().encodeToString(md5);
             String timestamp = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss zzz"));
@@ -811,14 +812,13 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .append("\n")
                     .append("/").append(bucketName).append("/")
                     .append('?').append("cors");
-            Mac mac = Mac.getInstance("HmacSHA1");
-            mac.init(new SecretKeySpec(accountSecretKey.getBytes(CHARSET_UTF_8), "HmacSHA1"));
+            Mac mac = Mac.getInstance(SIGNATURE_METHOD);
+            mac.init(new SecretKeySpec(accountSecretKey.getBytes(CHARSET_UTF_8), SIGNATURE_METHOD));
             String signature = Base64.getEncoder().encodeToString(mac.doFinal(data.toString().getBytes(CHARSET_UTF_8)));
             StringBuilder requestStringBuilder = new StringBuilder()
                     .append("https://").append(bucketName).append(".").append(uri.getHost())
                     .append('?').append("cors");
             URI corsUri = new URI(requestStringBuilder.toString());
-            System.err.println("--> " + corsUri.toASCIIString());
             HttpRequest request = HttpRequest.newBuilder(corsUri)
                     .PUT(HttpRequest.BodyPublishers.ofString(body))
                     .setHeader("Authorization", "OBS " + accountAccessKey + ":" + signature)
@@ -828,10 +828,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .version(HttpClient.Version.HTTP_2)
                     .timeout(Duration.ofSeconds(30))
                     .build();
-            HttpClient httpClient = getHttpClient();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            System.err.println(response.statusCode());
-            System.err.println(response.body());
+            getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
         } catch (InvalidKeyException | NoSuchAlgorithmException | KeyManagementException | URISyntaxException | IOException | InterruptedException ex) {
             throw new CloudRuntimeException(ex);
         }
@@ -854,14 +851,13 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         String clientAccessKey = storeDetails.get(OBJECT_STORE_ACCESS_KEY);
         String clientSecretKey = storeDetails.get(OBJECT_STORE_SECRET_KEY);
         try {
-            HttpClient httpClient = getHttpClient();
             URI createAccountUri = new URI(accountRequestString("CreateAccount", hostPort, endpoint, clientAccessKey, clientSecretKey, accountID, accountName));
             HttpRequest request = HttpRequest.newBuilder(createAccountUri)
                     .GET()
                     .version(HttpClient.Version.HTTP_2)
                     .timeout(Duration.ofSeconds(30))
                     .build();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 200) {
                 JSONObject jsonXml = XML.toJSONObject(response.body());
                 JSONObject createdAccount = jsonXml
@@ -877,7 +873,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                             .version(HttpClient.Version.HTTP_2)
                             .timeout(Duration.ofSeconds(30))
                             .build();
-                    response = httpClient.send(createAccessKeyRequest, HttpResponse.BodyHandlers.ofString());
+                    response = getHttpClient().send(createAccessKeyRequest, HttpResponse.BodyHandlers.ofString());
                     jsonXml = XML.toJSONObject(response.body());
                     JSONObject createdAccessKey = jsonXml
                             .getJSONObject("CreateAccessKeyResponse")
