@@ -6,8 +6,9 @@ import com.cloud.user.AccountDetailVO;
 import com.cloud.user.AccountDetailsDao;
 import com.cloud.user.AccountVO;
 import com.cloud.user.dao.AccountDao;
-import com.obs.services.ObsClient;
-import com.obs.services.model.CreateBucketRequest;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import org.apache.cloudstack.storage.datastore.db.ObjectStoreDao;
 import org.apache.cloudstack.storage.datastore.db.ObjectStoreDetailsDao;
 import org.apache.cloudstack.storage.datastore.db.ObjectStoreVO;
@@ -29,7 +30,9 @@ public class HuaweiObsObjectStoreDriverImplTest {
     HuaweiObsObjectStoreDriverImpl huaweiObsObjectStoreDriverImpl = new HuaweiObsObjectStoreDriverImpl();
 
     @Mock
-    ObsClient obsClient;
+    HttpClient httpClient;
+    @Mock
+    HttpResponse httpResponse;
     @Mock
     ObjectStoreDao objectStoreDao;
     @Mock
@@ -60,27 +63,31 @@ public class HuaweiObsObjectStoreDriverImplTest {
 
     @Test
     public void testCreateBucket() throws Exception {
-        Mockito.doReturn(obsClient).when(huaweiObsObjectStoreDriverImpl).getObsClient(Mockito.anyLong());
+        Mockito.doReturn(httpClient).when(huaweiObsObjectStoreDriverImpl).getHttpClient();
         Mockito.when(accountDao.findById(Mockito.anyLong())).thenReturn(account);
         Mockito.when(accountDetailsDao.findDetail(Mockito.anyLong(), Mockito.anyString())).thenReturn(new AccountDetailVO(1L, "abc", "def"));
-        Mockito.when(obsClient.headBucket(bucketName)).thenReturn(false);
+        Mockito.when(huaweiObsObjectStoreDriverImpl.headBucket(Mockito.anyString(), Mockito.any(), Mockito.anyString(), Mockito.anyString())).thenReturn(false);
         Mockito.when(bucketDao.findById(Mockito.anyLong())).thenReturn(new BucketVO(0, 0, 0, bucketName, 100, false, false, false, "public"));
         Mockito.when(objectStoreVO.getUrl()).thenReturn("http://localhost:9000");
         Mockito.when(objectStoreDao.findById(Mockito.any())).thenReturn(objectStoreVO);
-        Mockito.doNothing().when(huaweiObsObjectStoreDriverImpl).cors(Mockito.anyString(), Mockito.anyLong(), Mockito.anyString());
+        Mockito.doNothing().when(huaweiObsObjectStoreDriverImpl).cors(Mockito.anyString(), Mockito.any(), Mockito.anyString(), Mockito.anyString());
+        Mockito.when(httpResponse.statusCode()).thenReturn(200);
+        Mockito.when(httpClient.send(Mockito.any(HttpRequest.class), Mockito.any())).thenReturn(httpResponse);
         Bucket bucketRet = huaweiObsObjectStoreDriverImpl.createBucket(bucket, false);
         assertEquals(bucketRet.getName(), bucket.getName());
-        Mockito.verify(obsClient, Mockito.times(1)).headBucket(Mockito.anyString());
-        Mockito.verify(obsClient, Mockito.times(1)).createBucket(Mockito.any(CreateBucketRequest.class));
+        Mockito.verify(huaweiObsObjectStoreDriverImpl.headBucket(bucketName, Mockito.any(), Mockito.anyString(), Mockito.anyString()));
+        Mockito.verify(huaweiObsObjectStoreDriverImpl.createBucket(bucket, false));
     }
 
     @Test
     public void testDeleteBucket() throws Exception {
-        Mockito.doReturn(obsClient).when(huaweiObsObjectStoreDriverImpl).getObsClient(Mockito.anyLong());
-        Mockito.when(obsClient.headBucket(bucketName)).thenReturn(true);
-        boolean success = huaweiObsObjectStoreDriverImpl.deleteBucket(bucketName, 1L);
-        assertTrue(success);
-        Mockito.verify(obsClient, Mockito.times(1)).headBucket(Mockito.anyString());
-        Mockito.verify(obsClient, Mockito.times(1)).deleteBucket(Mockito.anyString());
+        Mockito.doReturn(httpClient).when(huaweiObsObjectStoreDriverImpl).getHttpClient();
+        Mockito.when(huaweiObsObjectStoreDriverImpl.headBucket(Mockito.anyString(), Mockito.any(), Mockito.anyString(), Mockito.anyString())).thenReturn(true);
+        Mockito.when(huaweiObsObjectStoreDriverImpl.getStorageInfo(bucketName, Mockito.any(), Mockito.anyString(), Mockito.anyString())).thenReturn(new Long[]{0L, 0L});
+        Mockito.when(httpResponse.statusCode()).thenReturn(204);
+        Mockito.when(httpClient.send(Mockito.any(HttpRequest.class), Mockito.any())).thenReturn(httpResponse);
+        assertTrue(huaweiObsObjectStoreDriverImpl.deleteBucket(bucketName, 1L));
+        Mockito.verify(huaweiObsObjectStoreDriverImpl.headBucket(bucketName, Mockito.any(), Mockito.anyString(), Mockito.anyString()));
+        Mockito.verify(huaweiObsObjectStoreDriverImpl.deleteBucket(bucketName, Mockito.anyLong()));
     }
 }
