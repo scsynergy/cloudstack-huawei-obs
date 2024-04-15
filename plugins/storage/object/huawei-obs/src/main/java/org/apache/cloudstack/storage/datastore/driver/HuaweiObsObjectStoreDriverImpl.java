@@ -200,7 +200,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                 .append(endpoint.getScheme()).append("://").append(bucketName).append(".").append(endpoint.getHost());
         URI headBucketUri = new URI(requestString.toString());
         HttpRequest request = authorizationHeaders(headBucketUri, timestamp, accountAccessKey, accountSecretKey, data)
-//                .HEAD()
+                .method("HEAD", HttpRequest.BodyPublishers.noBody())
                 .build();
         HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
         System.err.println("headBucket === " + response.statusCode());
