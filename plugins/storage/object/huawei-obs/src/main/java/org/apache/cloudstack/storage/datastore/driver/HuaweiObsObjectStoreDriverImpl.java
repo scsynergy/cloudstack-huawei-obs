@@ -518,10 +518,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
 
     private String createUserBucketPolicy(String bucketname, String userName, URI poeEndpoint, String accountAccessKey, String accountSecretKey) throws URISyntaxException, InvalidKeyException, NoSuchAlgorithmException, KeyManagementException, IOException, UnsupportedEncodingException, InterruptedException {
         JSONObject specificUser = getUser(userName, poeEndpoint, accountAccessKey, accountSecretKey);
-        String arn = specificUser.getJSONObject("GetUserResponse")
-                .getJSONObject("GetUserResult")
-                .getJSONObject("User")
-                .getString("Arn")
+        String arn = specificUser.getString("Arn")
                 .replace("iam:", "domain/")
                 .replace(":", ":user/");
         String id = "Policy" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
