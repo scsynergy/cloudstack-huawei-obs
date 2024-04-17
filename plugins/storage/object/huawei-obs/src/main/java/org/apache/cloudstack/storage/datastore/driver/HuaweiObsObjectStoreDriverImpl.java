@@ -1316,7 +1316,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
      * For future use if we want to switch back to creating accounts.
      */
     private String accountRequestString(String action, URI poeEndpoint, String poeAccessKeyId, String poeAccessKeySecret, String accountId, String accountName) throws UnsupportedEncodingException, InvalidKeyException, NoSuchAlgorithmException {
-        Map<String, String> signParameters = parameters(action, poeAccessKeyId, accountId, accountName, null, null);
+        Map<String, String> signParameters = parameters(action, poeAccessKeyId, accountId, accountName, null, null, null, null);
         StringBuilder requestString = new StringBuilder();
         requestString.append(poeEndpoint.getScheme()).append("://").append(poeEndpoint.getHost()).append(":").append(poeEndpoint.getPort());
         requestString.append(urlEncode(poeEndpoint.getPath(), true));
