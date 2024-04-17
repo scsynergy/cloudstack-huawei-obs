@@ -137,6 +137,10 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         long accountId = bucket.getAccountId();
         long storeId = bucket.getObjectStoreId();
         Account account = _accountDao.findById(accountId);
+        String userId = account.getUuid();
+        String userName = account.getAccountName();
+        System.err.println("°°° " + userId);
+        System.err.println("°°° " + userName);
         String[] accessSecretKeysEndpoint = getAccessSecretKeysEndpoint(storeId);
         String accountAccessKey = accessSecretKeysEndpoint[0];
         String accountSecretKey = accessSecretKeysEndpoint[1];
@@ -189,26 +193,31 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
     }
 
     protected boolean headBucket(String bucketName, URI endpoint, String accountAccessKey, String accountSecretKey) throws URISyntaxException, NoSuchAlgorithmException, UnsupportedEncodingException, InvalidKeyException, KeyManagementException, IOException, InterruptedException {
-        String timestamp = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss zzz"));
-        StringBuilder data = new StringBuilder()
-                .append("HEAD").append("\n")
-                .append("\n")
-                .append("\n")
-                .append(timestamp).append("\n")
-                .append("/").append(bucketName).append("/");
-        StringBuilder requestString = new StringBuilder()
-                .append(endpoint.getScheme()).append("://").append(bucketName).append(".").append(endpoint.getHost());
-        URI headBucketUri = new URI(requestString.toString());
-        HttpRequest request = authorizationHeaders(headBucketUri, timestamp, accountAccessKey, accountSecretKey, data)
-                .method("HEAD", HttpRequest.BodyPublishers.noBody())
-                .build();
-        HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-        System.err.println("headBucket === " + response.statusCode());
-        if (response.statusCode() != 200) {
-            System.err.println(response.body());
-            System.err.println("headBucket ===");
+        try {
+            String timestamp = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss zzz"));
+            StringBuilder data = new StringBuilder()
+                    .append("HEAD").append("\n")
+                    .append("\n")
+                    .append("\n")
+                    .append(timestamp).append("\n")
+                    .append("/").append(bucketName).append("/");
+            StringBuilder requestString = new StringBuilder()
+                    .append(endpoint.getScheme()).append("://").append(bucketName).append(".").append(endpoint.getHost());
+            URI headBucketUri = new URI(requestString.toString());
+            HttpRequest request = authorizationHeaders(headBucketUri, timestamp, accountAccessKey, accountSecretKey, data)
+                    .method("HEAD", HttpRequest.BodyPublishers.noBody())
+                    .build();
+            HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+            System.err.println("headBucket === " + response.statusCode());
+            if (response.statusCode() != 200) {
+                System.err.println(response.body());
+                System.err.println("headBucket ===");
+            }
+            return response.statusCode() == 200;
+        } catch (Exception ex) {
+            ex.printStackTrace();
         }
-        return response.statusCode() == 200;
+        return true;
     }
 
     protected void cors(String bucketName, URI endpoint, String accountAccessKey, String accountSecretKey) throws NoSuchAlgorithmException, UnsupportedEncodingException, URISyntaxException, InvalidKeyException, KeyManagementException, IOException, InterruptedException {
@@ -1025,6 +1034,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     details.put(ACCOUNT_ACCESS_KEY, ak);
                     details.put(ACCOUNT_SECRET_KEY, sk);
                     _accountDetailsDao.persist(accountId, details);
+                    System.err.println("createUser " + userId + " ::: " + userName + " ===");
                     return true;
                 }
             } else if (response.statusCode() == 409) {
