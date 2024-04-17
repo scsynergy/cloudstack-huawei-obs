@@ -137,10 +137,8 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         long accountId = bucket.getAccountId();
         long storeId = bucket.getObjectStoreId();
         Account account = _accountDao.findById(accountId);
-        String userId = account.getUuid();
-        String userName = account.getAccountName();
-        System.err.println("°°° " + userId);
-        System.err.println("°°° " + userName);
+        String userId = account.getUuid(); // this is the Cloudstack user that pressed the button of the UI
+        String userName = account.getAccountName(); // this is the Cloudstack user that pressed the button of the UI
         String[] accessSecretKeysEndpoint = getAccessSecretKeysEndpoint(storeId);
         String accountAccessKey = accessSecretKeysEndpoint[0];
         String accountSecretKey = accessSecretKeysEndpoint[1];
@@ -173,6 +171,9 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
             System.err.println("createBucket === " + response.statusCode());
             if (response.statusCode() == 200) {
+                URI poeEndpointUri = new URI("https://poe-obs.scsynergy.net:9443/poe/rest");
+                String userBucketPolicy = createUserBucketPolicy(bucketName, userName, poeEndpointUri, accountAccessKey, accountSecretKey);
+                setBucketPolicy(bucketName, userBucketPolicy, storeId);
                 BucketVO bucketVO = _bucketDao.findById(bucket.getId());
                 String userAccessKey = _accountDetailsDao.findDetail(accountId, ACCOUNT_ACCESS_KEY).getValue();
                 String userSecretKey = _accountDetailsDao.findDetail(accountId, ACCOUNT_SECRET_KEY).getValue();
@@ -417,14 +418,14 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                         .getJSONObject("AccessControlPolicy")
                         .getJSONObject("Owner")
                         .getString("ID");
-                String username = getSelf(poeEndpointUri, accountAccessKey, accountSecretKey);
+                String self = getUser(null, poeEndpointUri, accountAccessKey, accountSecretKey).getString("UserName");
                 JSONObject grant = jsonXml
                         .getJSONObject("AccessControlPolicy")
                         .getJSONObject("AccessControlList")
                         .getJSONObject("Grant");
                 Grantee grantee = new CanonicalGrantee(grant.getJSONObject("Grantee").getString("ID"));
                 Permission permission = Permission.parsePermission(grant.getString("Permission"));
-                accessControlList.setOwner(new Owner(ownerId, username));
+                accessControlList.setOwner(new Owner(ownerId, self));
                 accessControlList.grantPermission(grantee, permission);
             }
             if (response.statusCode() != 200) {
@@ -437,8 +438,8 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         }
     }
 
-    private String getSelf(URI poeEndpoint, String poeAccessKeyId, String poeAccessKeySecret) throws URISyntaxException, UnsupportedEncodingException, InvalidKeyException, NoSuchAlgorithmException, KeyManagementException, IOException, InterruptedException {
-        URI getUserUri = new URI(userRequestString("GetUser", poeEndpoint, poeAccessKeyId, poeAccessKeySecret, null, null));
+    private JSONObject getUser(String userName, URI poeEndpoint, String poeAccessKeyId, String poeAccessKeySecret) throws URISyntaxException, UnsupportedEncodingException, InvalidKeyException, NoSuchAlgorithmException, KeyManagementException, IOException, InterruptedException {
+        URI getUserUri = new URI(userRequestString("GetUser", poeEndpoint, poeAccessKeyId, poeAccessKeySecret, null, userName, null, null));
         HttpRequest request = HttpRequest.newBuilder(getUserUri)
                 .GET()
                 .version(HttpClient.Version.HTTP_2)
@@ -450,14 +451,13 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             return XML.toJSONObject(response.body())
                     .getJSONObject("GetUserResponse")
                     .getJSONObject("GetUserResult")
-                    .getJSONObject("User")
-                    .getString("UserName");
+                    .getJSONObject("User");
         }
         if (response.statusCode() != 200) {
             System.err.println(response.body());
             System.err.println("getSelf ===");
         }
-        return "Unkown";
+        return new JSONObject().append("UserName", "unkown because of error").append("Arn", "unkown because of error");
     }
 
     @Override
@@ -516,6 +516,67 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         }
     }
 
+    private String createUserBucketPolicy(String bucketname, String userName, URI poeEndpoint, String accountAccessKey, String accountSecretKey) throws URISyntaxException, InvalidKeyException, NoSuchAlgorithmException, KeyManagementException, IOException, UnsupportedEncodingException, InterruptedException {
+        JSONObject specificUser = getUser(userName, poeEndpoint, accountAccessKey, accountSecretKey);
+        String arn = specificUser.getJSONObject("GetUserResponse")
+                .getJSONObject("GetUserResult")
+                .getJSONObject("User")
+                .getString("Arn")
+                .replace("iam:", "domain/")
+                .replace(":", ":user/");
+        String id = "Policy" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+        StringBuilder specificUserPolicy = new StringBuilder();
+        specificUserPolicy.append("{\n");
+        specificUserPolicy.append("   \"Version\": \"2008-10-17\",\n");
+        specificUserPolicy.append("   \"Id\": \"").append(id).append("\",\n");
+        specificUserPolicy.append("   \"Statement\": [\n");
+        specificUserPolicy.append("      {\n");
+        specificUserPolicy.append("         \"Sid\": \"specificUserReadWritePolicyStatementId\",\n");
+        specificUserPolicy.append("         \"Effect\": \"Allow\",\n");
+        specificUserPolicy.append("         \"Principal\": {\n");
+        specificUserPolicy.append("            \"ID\": [\n");
+        specificUserPolicy.append("               \"").append(arn).append("\"\n");
+        specificUserPolicy.append("            ]\n");
+        specificUserPolicy.append("         },\n");
+        specificUserPolicy.append("         \"Action\": [\n");
+        specificUserPolicy.append("            \"GetObject\",\n");
+        specificUserPolicy.append("            \"PutObject\",\n");
+        specificUserPolicy.append("            \"GetObjectVersion\",\n");
+        specificUserPolicy.append("            \"DeleteObjectVersion\",\n");
+        specificUserPolicy.append("            \"DeleteObject\",\n");
+        specificUserPolicy.append("            \"ListMultipartUploadParts\",\n");
+        specificUserPolicy.append("            \"GetObjectAcl\",\n");
+        specificUserPolicy.append("            \"GetObjectVersionAcl\",\n");
+        specificUserPolicy.append("            \"PutObjectAcl\",\n");
+        specificUserPolicy.append("            \"PutObjectVersionAcl\",\n");
+        specificUserPolicy.append("            \"AbortMultipartUpload\"\n");
+        specificUserPolicy.append("         ],\n");
+        specificUserPolicy.append("         \"Resource\": [\n");
+        specificUserPolicy.append("            \"").append(bucketname).append("/*\"\n");
+        specificUserPolicy.append("         ]\n");
+        specificUserPolicy.append("      },\n");
+        specificUserPolicy.append("      {\n");
+        specificUserPolicy.append("         \"Sid\": \"specificUserListBucketPolicyStatementId\",\n");
+        specificUserPolicy.append("         \"Effect\": \"Allow\",\n");
+        specificUserPolicy.append("         \"Principal\": {\n");
+        specificUserPolicy.append("            \"ID\": [\n");
+        specificUserPolicy.append("               \"").append(arn).append("\"\n");
+        specificUserPolicy.append("            ]\n");
+        specificUserPolicy.append("         },\n");
+        specificUserPolicy.append("         \"Action\": [\n");
+        specificUserPolicy.append("            \"ListBucket\",\n");
+        specificUserPolicy.append("            \"ListBucketVersions\",\n");
+        specificUserPolicy.append("            \"ListBucketMultipartUploads\"\n");
+        specificUserPolicy.append("         ],\n");
+        specificUserPolicy.append("         \"Resource\": [\n");
+        specificUserPolicy.append("            \"").append(bucketname).append("\"\n");
+        specificUserPolicy.append("         ]\n");
+        specificUserPolicy.append("      }\n");
+        specificUserPolicy.append("   ]\n");
+        specificUserPolicy.append("}");
+        return specificUserPolicy.toString();
+    }
+
     /**
      * When a bucket is created as "private" via the Huawei UI it simply does
      * not have a policy. Trying to read or delete the bucket policy of a
@@ -523,7 +584,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
      * Huawei's UI has three default policies to choose from: "private", "public
      * read-only" and "public read-write". Since the Cloudstack UI only offers
      * "private" and "public" in the dropdown I chose to map "public" to
-     * "public-read-write" and "private" to "public read-only" and mapping the
+     * "public-read-write" and "private" to "public read-only" and to map the
      * default empty dropdown selection to Huawei's "private" policy. Maybe in
      * the future we can have the UI adapt the items in the dropdown depending
      * on what provider is selected?
@@ -998,7 +1059,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
 
         try {
             URI poeEndpointUri = new URI("https://poe-obs.scsynergy.net:9443/poe/rest");
-            URI createUserUri = new URI(userRequestString("CreateUser", poeEndpointUri, accountAccessKey, accountSecretKey, userId, userName));
+            URI createUserUri = new URI(userRequestString("CreateUser", poeEndpointUri, accountAccessKey, accountSecretKey, userId, userName, null, null));
             HttpRequest request = HttpRequest.newBuilder(createUserUri)
                     .GET()
                     .version(HttpClient.Version.HTTP_2)
@@ -1012,7 +1073,23 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                         .getJSONObject("CreateUserResult")
                         .getJSONObject("User");
                 userId = createdUser.getString("UserId");
-                URI createAccessKeyUri = new URI(userRequestString("CreateAccessKey", poeEndpointUri, accountAccessKey, accountSecretKey, userId, userName));
+
+                String userPermissionPolicyName = "AllAccessPolicy";
+                String userPermissionPolicy = "{\"Statement\":[{\"Effect\":\"Allow\",\"Action\":\"*\",\"Resource\":\"*\"}]}";
+                URI setUserPermissionPolicyUri = new URI(userRequestString("PutUserPolicy", poeEndpointUri, accountAccessKey, accountSecretKey, userId, userName, userPermissionPolicyName, userPermissionPolicy));
+                HttpRequest setUserPermissionPolicyRequest = HttpRequest.newBuilder()
+                        .uri(setUserPermissionPolicyUri)
+                        .GET()
+                        .version(HttpClient.Version.HTTP_2)
+                        .timeout(Duration.ofSeconds(30))
+                        .build();
+                response = getHttpClient().send(setUserPermissionPolicyRequest, HttpResponse.BodyHandlers.ofString());
+                jsonXml = XML.toJSONObject(response.body());
+                System.err.println("------------");
+                System.err.println(jsonXml.toString(4));
+                System.err.println("============");
+
+                URI createAccessKeyUri = new URI(userRequestString("CreateAccessKey", poeEndpointUri, accountAccessKey, accountSecretKey, userId, userName, null, null));
                 HttpRequest createAccessKeyRequest = HttpRequest.newBuilder()
                         .uri(createAccessKeyUri)
                         .GET()
@@ -1047,13 +1124,22 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         return false;
     }
 
-    private String userRequestString(String action, URI poeEndpoint, String poeAccessKeyId, String poeAccessKeySecret, String userId, String userName) throws UnsupportedEncodingException, InvalidKeyException, NoSuchAlgorithmException {
-        Map<String, String> signParameters = parameters(action, poeAccessKeyId, null, null, userId, userName);
+    private String userRequestString(String action, URI poeEndpoint, String poeAccessKeyId, String poeAccessKeySecret, String userId, String userName, String userPermissionPolicyName, String userPermissionPolicy) throws UnsupportedEncodingException, InvalidKeyException, NoSuchAlgorithmException {
+        Map<String, String> signParameters = parameters(action, poeAccessKeyId, null, null, userId, userName, userPermissionPolicyName, userPermissionPolicy);
         StringBuilder requestString = new StringBuilder();
         requestString.append(poeEndpoint.getScheme()).append("://").append(poeEndpoint.getHost()).append(":").append(poeEndpoint.getPort());
         requestString.append(urlEncode(poeEndpoint.getPath(), true));
         requestString.append('?');
         requestString.append("Action=").append(urlEncode(signParameters.get("Action"), false));
+        if (userName != null && !userName.isBlank()) {
+            requestString.append("&").append("UserName=").append(urlEncode(signParameters.get("UserName"), false));
+        }
+        if (userPermissionPolicyName != null && !userPermissionPolicyName.isBlank()) {
+            requestString.append("&").append("PolicyName=").append(urlEncode(signParameters.get("PolicyName"), false));
+        }
+        if (userPermissionPolicy != null && !userPermissionPolicy.isBlank()) {
+            requestString.append("&").append("PolicyDocument=").append(urlEncode(signParameters.get("PolicyDocument"), false));
+        }
         if (userId != null && !userId.isBlank()) {
             requestString.append("&").append("AccessKeyId=").append(urlEncode(signParameters.get("AccessKeyId"), false));
         }
@@ -1061,9 +1147,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         requestString.append("&").append("SignatureMethod=").append(urlEncode(signParameters.get("SignatureMethod"), false));
         requestString.append("&").append("SignatureVersion=").append(urlEncode(signParameters.get("SignatureVersion"), false));
         requestString.append("&").append("Timestamp=").append(urlEncode(signParameters.get("Timestamp"), false));
-        if (userName != null && !userName.isBlank()) {
-            requestString.append("&").append("UserName=").append(urlEncode(signParameters.get("UserName"), false));
-        }
         requestString.append("&").append("Signature=");
         String signature = sign("GET", poeEndpoint, signParameters, poeAccessKeySecret);
         signature = urlEncode(signature, false);
@@ -1071,7 +1154,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         return requestString.toString();
     }
 
-    private Map<String, String> parameters(String action, String poeAccessKeyId, String accountId, String accountName, String userId, String userName) {
+    private Map<String, String> parameters(String action, String poeAccessKeyId, String accountId, String accountName, String userId, String userName, String userPermissionPolicyName, String userPermissionPolicy) {
         SortedMap<String, String> parameters = new TreeMap<>();
         parameters.put("Action", action);
         if (accountId != null && !accountId.isBlank()) {
@@ -1085,6 +1168,12 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         }
         if (userName != null && !userName.isBlank()) {
             parameters.put("UserName", userName);
+        }
+        if (userPermissionPolicyName != null && !userPermissionPolicyName.isBlank()) {
+            parameters.put("PolicyName", userPermissionPolicyName);
+        }
+        if (userPermissionPolicy != null && !userPermissionPolicy.isBlank()) {
+            parameters.put("PolicyDocument", userPermissionPolicy);
         }
         parameters.put("POEAccessKeyId", poeAccessKeyId);
         parameters.put("SignatureMethod", POE_SIGNATURE_METHOD);
