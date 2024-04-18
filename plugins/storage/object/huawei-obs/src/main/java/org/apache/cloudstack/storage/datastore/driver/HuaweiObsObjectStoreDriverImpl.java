@@ -1071,7 +1071,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                         .getJSONObject("User");
                 userId = createdUser.getString("UserId");
 
-                String userPermissionPolicyName = "AllAccessPolicy";
+                String userPermissionPolicyName = "AccessAllPolicy";
                 String userPermissionPolicy = "{\"Statement\":[{\"Effect\":\"Allow\",\"Action\":\"*\",\"Resource\":\"*\"}]}";
                 URI setUserPermissionPolicyUri = new URI(userRequestString("PutUserPolicy", poeEndpointUri, accountAccessKey, accountSecretKey, userId, userName, userPermissionPolicyName, userPermissionPolicy));
                 HttpRequest setUserPermissionPolicyRequest = HttpRequest.newBuilder()
@@ -1182,7 +1182,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         return parameters;
     }
 
-    public String urlEncode(String value, boolean path) {
+    private String urlEncode(String value, boolean path) {
         try {
             String encoded = URLEncoder.encode(value, UTF_8).replace("+", "%20").replace("*", "%2A").replace("%7E", "~");
             if (path) {
