@@ -16,9 +16,6 @@ import com.cloud.user.dao.AccountDao;
 import com.cloud.utils.exception.CloudRuntimeException;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.NetworkInterface;
 import java.net.Socket;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -48,7 +45,6 @@ import org.apache.cloudstack.storage.object.BucketObject;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Date;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -234,29 +230,15 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                 .append("    <AllowedMethod>GET</AllowedMethod>\n")
                 .append("    <AllowedMethod>HEAD</AllowedMethod>\n")
                 .append("    <AllowedMethod>PUT</AllowedMethod>\n")
-                .append("    <AllowedMethod>DELETE</AllowedMethod>\n");
-        Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
-        while (networkInterfaces.hasMoreElements()) {
-            NetworkInterface networkInterface = networkInterfaces.nextElement();
-            if (networkInterface != null && networkInterface.isUp()) {
-                Enumeration<InetAddress> iter = networkInterface.getInetAddresses();
-                while (iter.hasMoreElements()) {
-                    InetAddress inetAddress = iter.nextElement();
-                    if (isReachable(networkInterface, inetAddress, endpoint, 5000)) {
-                        String validHostname = inetAddress.getCanonicalHostName().replaceAll("%.+$", "");
-                        bodyBuilder.append("    <AllowedOrigin>").append(validHostname).append("</AllowedOrigin>\n");
-                    }
-                }
-            }
-        }
-        bodyBuilder.append("    <MaxAgeSeconds>86400</MaxAgeSeconds>\n")
+                .append("    <AllowedMethod>DELETE</AllowedMethod>\n")
+                .append("    <AllowedOrigin>*</AllowedOrigin>\n")
+                .append("    <MaxAgeSeconds>86400</MaxAgeSeconds>\n")
                 .append("    <AllowedHeader>*</AllowedHeader>\n")
                 .append("    <ExposeHeader>Access-Control-Allow-Origin</ExposeHeader>\n")
                 .append("    <ExposeHeader>Vary</ExposeHeader>\n")
                 .append("  </CORSRule>\n")
                 .append("</CORSConfiguration>");
         String body = bodyBuilder.toString();
-        System.err.println(body);
         byte[] md5 = MessageDigest.getInstance("MD5").digest(body.getBytes(UTF_8));
         String base64 = Base64.getEncoder().encodeToString(md5);
         StringBuilder data = new StringBuilder()
@@ -278,44 +260,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             System.err.println(response.body());
             System.err.println("cors ===");
         }
-    }
-
-    /**
-     *
-     * This method serves to reduce the amount of "AllowedOrigin" entries inside
-     * the CORS configuration body.
-     *
-     * {@code InetAddress.getByName(endpoint.getHost()).isReachable(networkInterface, 50, timeout)
-     * }
-     * tries to connect to port 7 which is almost always blocked by firewalls.
-     * Since port 7 is fixed and cannot be altered I had to write my own method
-     * to test which interface will be the one which partakes in the CORS HTTP
-     * calls.
-     */
-    private static boolean isReachable(NetworkInterface networkInterface, InetAddress localInetAddress, URI endpoint, int timeout) throws IOException, URISyntaxException {
-        if (localInetAddress.isLoopbackAddress() || localInetAddress.isAnyLocalAddress()) {
-            return false;
-        }
-        if (InetAddress.getByName(endpoint.getHost()).isReachable(networkInterface, 50, timeout)) {
-            return true;
-        }
-        int port = endpoint.getPort();
-        if (port == -1 && "HTTP".equalsIgnoreCase(endpoint.getScheme())) {
-            port = 80;
-        } else if (port == -1 && "HTTPS".equalsIgnoreCase(endpoint.getScheme())) {
-            port = 443;
-        } else if (port < 0) {
-            return false;
-        }
-        try (Socket clientSocket = new Socket()) {
-            clientSocket.setSoTimeout(timeout);
-            clientSocket.bind(new InetSocketAddress(localInetAddress, 0));
-            clientSocket.connect(new InetSocketAddress(endpoint.getHost(), port), timeout);
-            return true;
-        } catch (Exception ex) {
-            //do nothing
-        }
-        return false;
     }
 
     @Override
