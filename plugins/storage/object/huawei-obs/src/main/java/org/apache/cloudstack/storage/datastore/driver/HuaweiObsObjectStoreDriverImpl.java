@@ -169,7 +169,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .PUT(HttpRequest.BodyPublishers.noBody())
                     .build();
             HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-            System.err.println("createBucket === " + response.statusCode());
             if (response.statusCode() == 200) {
                 URI poeEndpointUri = new URI("https://poe-obs.scsynergy.net:9443/poe/rest");
                 String userBucketPolicy = createUserBucketPolicy(bucketName, userName, poeEndpointUri, accountAccessKey, accountSecretKey);
@@ -185,8 +184,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                 cors(bucketName, createBucketUri, accountAccessKey, accountSecretKey);
                 return bucketVO;
             }
-            System.err.println(response.body());
-            System.err.println("createBucket ===");
         } catch (NoSuchAlgorithmException | InvalidKeyException | URISyntaxException | IOException | InterruptedException | KeyManagementException ex) {
             throw new CloudRuntimeException(ex);
         }
@@ -209,11 +206,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .method("HEAD", HttpRequest.BodyPublishers.noBody())
                     .build();
             HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-            System.err.println("headBucket === " + response.statusCode());
-            if (response.statusCode() != 200) {
-                System.err.println(response.body());
-                System.err.println("headBucket ===");
-            }
             return response.statusCode() == 200;
         } catch (Exception ex) {
             ex.printStackTrace();
@@ -254,12 +246,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                 .setHeader(CONTENT_MD5, base64)
                 .setHeader(CONTENT_TYPE, "application/xml")
                 .build();
-        HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-        System.err.println("cors === " + response.statusCode());
-        if (response.statusCode() != 200) {
-            System.err.println(response.body());
-            System.err.println("cors ===");
-        }
+        getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     @Override
@@ -283,7 +270,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .GET()
                     .build();
             HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-            System.err.println("listBuckets === " + response.statusCode());
             if (response.statusCode() == 200) {
                 JSONObject jsonXml = XML.toJSONObject(response.body());
                 JSONArray buckets = jsonXml
@@ -297,10 +283,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     bucket.setName(object.getString("Name"));
                     bucketsList.add(bucket);
                 }
-            }
-            if (response.statusCode() != 200) {
-                System.err.println(response.body());
-                System.err.println("listBuckets ===");
             }
         } catch (Exception ex) {
             throw new CloudRuntimeException(ex);
@@ -340,11 +322,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .DELETE()
                     .build();
             HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-            System.err.println("deleteBucket === " + response.statusCode());
-            if (response.statusCode() != 204) {
-                System.err.println(response.body());
-                System.err.println("deleteBucket ===");
-            }
             return response.statusCode() == 204;
         } catch (NoSuchAlgorithmException | InvalidKeyException | URISyntaxException | IOException | InterruptedException | KeyManagementException ex) {
             throw new CloudRuntimeException(ex);
@@ -368,7 +345,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                 .GET()
                 .build();
         HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-        System.err.println("getStorageInfo === " + response.statusCode());
         if (response.statusCode() == 200) {
             JSONObject jsonXml = XML.toJSONObject(response.body());
             Long objectNumber = jsonXml
@@ -379,8 +355,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .getLong("Size");
             return new Long[]{objectNumber, size};
         }
-        System.err.println(response.body());
-        System.err.println("getStorageInfo ===");
         return new Long[]{-1L, -1L};
     }
 
@@ -410,7 +384,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .GET()
                     .build();
             HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-            System.err.println("getBucketAcl === " + response.statusCode());
             AccessControlList accessControlList = new AccessControlList();
             if (response.statusCode() == 200) {
                 JSONObject jsonXml = XML.toJSONObject(response.body());
@@ -428,10 +401,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                 accessControlList.setOwner(new Owner(ownerId, self));
                 accessControlList.grantPermission(grantee, permission);
             }
-            if (response.statusCode() != 200) {
-                System.err.println(response.body());
-                System.err.println("getBucketAcl ===");
-            }
             return accessControlList;
         } catch (NoSuchAlgorithmException | InvalidKeyException | URISyntaxException | IOException | InterruptedException | KeyManagementException ex) {
             throw new CloudRuntimeException(ex);
@@ -446,16 +415,11 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                 .timeout(Duration.ofSeconds(10))
                 .build();
         HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-        System.err.println("getSelf === " + response.statusCode());
         if (response.statusCode() == 200) {
             return XML.toJSONObject(response.body())
                     .getJSONObject("GetUserResponse")
                     .getJSONObject("GetUserResult")
                     .getJSONObject("User");
-        }
-        if (response.statusCode() != 200) {
-            System.err.println(response.body());
-            System.err.println("getSelf ===");
         }
         return new JSONObject().append("UserName", "unkown because of error").append("Arn", "unkown because of error");
     }
@@ -505,12 +469,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .setHeader(CONTENT_MD5, base64)
                     .setHeader(CONTENT_TYPE, "application/xml")
                     .build();
-            HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-            System.err.println("setBucketAcl === " + response.statusCode());
-            if (response.statusCode() != 200) {
-                System.err.println(response.body());
-                System.err.println("setBucketAcl ===");
-            }
+            getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
         } catch (InvalidKeyException | NoSuchAlgorithmException | URISyntaxException | IOException | InterruptedException | KeyManagementException ex) {
             throw new CloudRuntimeException(ex);
         }
@@ -518,7 +477,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
 
     private String createUserBucketPolicy(String bucketname, String userName, URI poeEndpoint, String accountAccessKey, String accountSecretKey) throws URISyntaxException, InvalidKeyException, NoSuchAlgorithmException, KeyManagementException, IOException, UnsupportedEncodingException, InterruptedException {
         JSONObject specificUser = getUser(userName, poeEndpoint, accountAccessKey, accountSecretKey);
-        String arn = specificUser.getString("Arn")
+        String domainArn = specificUser.getString("Arn")
                 .replace("iam:", "domain/")
                 .replace(":", ":user/");
         String id = "Policy" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
@@ -532,7 +491,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         specificUserPolicy.append("         \"Effect\": \"Allow\",\n");
         specificUserPolicy.append("         \"Principal\": {\n");
         specificUserPolicy.append("            \"ID\": [\n");
-        specificUserPolicy.append("               \"").append(arn).append("\"\n");
+        specificUserPolicy.append("               \"").append(domainArn).append("\"\n");
         specificUserPolicy.append("            ]\n");
         specificUserPolicy.append("         },\n");
         specificUserPolicy.append("         \"Action\": [\n");
@@ -557,7 +516,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         specificUserPolicy.append("         \"Effect\": \"Allow\",\n");
         specificUserPolicy.append("         \"Principal\": {\n");
         specificUserPolicy.append("            \"ID\": [\n");
-        specificUserPolicy.append("               \"").append(arn).append("\"\n");
+        specificUserPolicy.append("               \"").append(domainArn).append("\"\n");
         specificUserPolicy.append("            ]\n");
         specificUserPolicy.append("         },\n");
         specificUserPolicy.append("         \"Action\": [\n");
@@ -717,12 +676,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .setHeader(CONTENT_MD5, base64)
                     .setHeader(CONTENT_TYPE, "application/xml")
                     .build();
-            HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-            System.err.println("setBucketPolicy === " + response.statusCode());
-            if (response.statusCode() != 200) {
-                System.err.println(response.body());
-                System.err.println("setBucketPolicy ===");
-            }
+            getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
         } catch (InvalidKeyException | NoSuchAlgorithmException | URISyntaxException | IOException | InterruptedException | KeyManagementException ex) {
             throw new CloudRuntimeException(ex);
         }
@@ -762,14 +716,9 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .GET()
                     .build();
             HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-            System.err.println("getBucketPolicy === " + response.statusCode());
             BucketPolicy bucketPolicy = new BucketPolicy();
             if (response.statusCode() == 200) {
                 bucketPolicy.setPolicyText(response.body());
-            }
-            if (response.statusCode() != 200) {
-                System.err.println(response.body());
-                System.err.println("getBucketPolicy ===");
             }
             return bucketPolicy;
         } catch (NoSuchAlgorithmException | InvalidKeyException | URISyntaxException | IOException | InterruptedException | KeyManagementException ex) {
@@ -809,12 +758,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             HttpRequest request = authorizationHeaders(policyUri, timestamp, accountAccessKey, accountSecretKey, data)
                     .DELETE()
                     .build();
-            HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-            System.err.println("deleteBucketPolicy === " + response.statusCode());
-            if (response.statusCode() != 200) {
-                System.err.println(response.body());
-                System.err.println("deleteBucketPolicy ===");
-            }
+            getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
         } catch (NoSuchAlgorithmException | InvalidKeyException | URISyntaxException | IOException | InterruptedException | KeyManagementException ex) {
             throw new CloudRuntimeException(ex);
         }
@@ -822,12 +766,12 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
 
     @Override
     public boolean setBucketEncryption(String bucketName, long storeId) {
-        return false; // not yet implemented
+        return false; // not yet implemented by Huawei
     }
 
     @Override
     public boolean deleteBucketEncryption(String bucketName, long storeId) {
-        return false; // not yet implemented
+        return false; // not yet implemented by Huawei
     }
 
     @Override
@@ -864,11 +808,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .setHeader(CONTENT_TYPE, "application/xml")
                     .build();
             HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-            System.err.println("setBucketVersioning === " + response.statusCode());
-            if (response.statusCode() != 200) {
-                System.err.println(response.body());
-                System.err.println("setBucketVersioning ===");
-            }
             return response.statusCode() == 200;
         } catch (NoSuchAlgorithmException | InvalidKeyException | URISyntaxException | IOException | InterruptedException | KeyManagementException ex) {
             throw new CloudRuntimeException(ex);
@@ -909,11 +848,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .setHeader(CONTENT_TYPE, "application/xml")
                     .build();
             HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-            System.err.println("setBucketVersioning === " + response.statusCode());
-            if (response.statusCode() != 200) {
-                System.err.println(response.body());
-                System.err.println("setBucketVersioning ===");
-            }
             return response.statusCode() == 200;
         } catch (NoSuchAlgorithmException | InvalidKeyException | URISyntaxException | IOException | InterruptedException | KeyManagementException ex) {
             throw new CloudRuntimeException(ex);
@@ -956,12 +890,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .setHeader(CONTENT_MD5, base64)
                     .setHeader(CONTENT_TYPE, "application/xml")
                     .build();
-            HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-            System.err.println("setBucketQuota === " + response.statusCode());
-            if (response.statusCode() != 200) {
-                System.err.println(response.body());
-                System.err.println("setBucketQuota ===");
-            }
+            getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
         } catch (NoSuchAlgorithmException | InvalidKeyException | URISyntaxException | IOException | InterruptedException | KeyManagementException ex) {
             throw new CloudRuntimeException(ex);
         }
@@ -1080,11 +1009,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                         .version(HttpClient.Version.HTTP_2)
                         .timeout(Duration.ofSeconds(30))
                         .build();
-                response = getHttpClient().send(setUserPermissionPolicyRequest, HttpResponse.BodyHandlers.ofString());
-                jsonXml = XML.toJSONObject(response.body());
-                System.err.println("------------");
-                System.err.println(jsonXml.toString(4));
-                System.err.println("============");
+                getHttpClient().send(setUserPermissionPolicyRequest, HttpResponse.BodyHandlers.ofString());
 
                 URI createAccessKeyUri = new URI(userRequestString("CreateAccessKey", poeEndpointUri, accountAccessKey, accountSecretKey, userId, userName, null, null));
                 HttpRequest createAccessKeyRequest = HttpRequest.newBuilder()
@@ -1108,7 +1033,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     details.put(ACCOUNT_ACCESS_KEY, ak);
                     details.put(ACCOUNT_SECRET_KEY, sk);
                     _accountDetailsDao.persist(accountId, details);
-                    System.err.println("createUser " + userId + " ::: " + userName + " ===");
                     return true;
                 }
             } else if (response.statusCode() == 409) {
