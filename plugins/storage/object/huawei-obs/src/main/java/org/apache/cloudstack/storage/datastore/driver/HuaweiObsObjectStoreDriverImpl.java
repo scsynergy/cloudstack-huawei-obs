@@ -208,7 +208,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
             return response.statusCode() == 200;
         } catch (Exception ex) {
-            ex.printStackTrace();
+            logger.debug("headBucket failed", ex);
         }
         return true;
     }
@@ -1024,8 +1024,8 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                         .getJSONObject("CreateAccessKeyResponse")
                         .getJSONObject("CreateAccessKeyResult")
                         .getJSONObject("AccessKey");
-                String userame = createdAccessKey.getString("UserName");
-                if (userName.equals(userame)) {
+                String username = createdAccessKey.getString("UserName");
+                if (userName.equals(username)) {
                     String ak = createdAccessKey.getString("AccessKeyId");
                     String sk = createdAccessKey.getString("SecretAccessKey");
                     // Store user credentials
