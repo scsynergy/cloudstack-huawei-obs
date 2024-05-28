@@ -992,6 +992,8 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .timeout(Duration.ofSeconds(10))
                     .build();
             HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+            System.err.println(response.body());
+            System.err.println(response.statusCode() + " == CREATE ACCOUNT WITH ALL");
             if (response.statusCode() == 200) {
                 JSONObject jsonXml = XML.toJSONObject(response.body());
                 JSONObject createdAccessKey = jsonXml
