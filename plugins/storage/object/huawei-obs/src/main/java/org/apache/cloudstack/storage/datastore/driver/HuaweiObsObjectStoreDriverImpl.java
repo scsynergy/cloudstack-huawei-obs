@@ -969,80 +969,8 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
      */
     @Override
     public boolean createUser(long accountId, long storeId) {
-//        return account(accountId, storeId);
-        return user(accountId, storeId);
-    }
-
-    private boolean user(long accountId, long storeId) {
-        String[] accessSecretKeysEndpoint = getAccessSecretKeysEndpoint(storeId);
-        String accountAccessKey = accessSecretKeysEndpoint[0];
-        String accountSecretKey = accessSecretKeysEndpoint[1];
-        String endpoint = accessSecretKeysEndpoint[2]; // this URL cannot be used for "/poe/rest" because Huawei REST API interprets "/poe" as a bucket
-
-        Account account = _accountDao.findById(accountId);
-        String userId = account.getUuid();
-        String userName = account.getAccountName();
-
-        try {
-            URI poeEndpointUri = new URI("https://poe-obs.scsynergy.net:9443/poe/rest");
-            URI createUserUri = new URI(userRequestString("CreateUser", poeEndpointUri, accountAccessKey, accountSecretKey, userId, userName, null, null));
-            HttpRequest request = HttpRequest.newBuilder(createUserUri)
-                    .GET()
-                    .version(HttpClient.Version.HTTP_2)
-                    .timeout(Duration.ofSeconds(10))
-                    .build();
-            HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 200) {
-                JSONObject jsonXml = XML.toJSONObject(response.body());
-                JSONObject createdUser = jsonXml
-                        .getJSONObject("CreateUserResponse")
-                        .getJSONObject("CreateUserResult")
-                        .getJSONObject("User");
-                userId = createdUser.getString("UserId");
-
-                String userPermissionPolicyName = "AccessAllPolicy";
-                String userPermissionPolicy = "{\"Statement\":[{\"Effect\":\"Allow\",\"Action\":\"*\",\"Resource\":\"*\"}]}";
-                URI setUserPermissionPolicyUri = new URI(userRequestString("PutUserPolicy", poeEndpointUri, accountAccessKey, accountSecretKey, userId, userName, userPermissionPolicyName, userPermissionPolicy));
-                HttpRequest setUserPermissionPolicyRequest = HttpRequest.newBuilder()
-                        .uri(setUserPermissionPolicyUri)
-                        .GET()
-                        .version(HttpClient.Version.HTTP_2)
-                        .timeout(Duration.ofSeconds(30))
-                        .build();
-                getHttpClient().send(setUserPermissionPolicyRequest, HttpResponse.BodyHandlers.ofString());
-
-                URI createAccessKeyUri = new URI(userRequestString("CreateAccessKey", poeEndpointUri, accountAccessKey, accountSecretKey, userId, userName, null, null));
-                HttpRequest createAccessKeyRequest = HttpRequest.newBuilder()
-                        .uri(createAccessKeyUri)
-                        .GET()
-                        .version(HttpClient.Version.HTTP_2)
-                        .timeout(Duration.ofSeconds(10))
-                        .build();
-                response = getHttpClient().send(createAccessKeyRequest, HttpResponse.BodyHandlers.ofString());
-                jsonXml = XML.toJSONObject(response.body());
-                JSONObject createdAccessKey = jsonXml
-                        .getJSONObject("CreateAccessKeyResponse")
-                        .getJSONObject("CreateAccessKeyResult")
-                        .getJSONObject("AccessKey");
-                String username = createdAccessKey.getString("UserName");
-                if (userName.equals(username)) {
-                    String ak = createdAccessKey.getString("AccessKeyId");
-                    String sk = createdAccessKey.getString("SecretAccessKey");
-                    // Store user credentials
-                    Map<String, String> details = new HashMap<>();
-                    details.put(ACCOUNT_ACCESS_KEY, ak);
-                    details.put(ACCOUNT_SECRET_KEY, sk);
-                    _accountDetailsDao.persist(accountId, details);
-                    return true;
-                }
-            } else if (response.statusCode() == 409) {
-                logger.debug("Skipping user creation as the user ID already exists in Huawei OBS store: " + userId);
-                return true;
-            }
-        } catch (NoSuchAlgorithmException | KeyManagementException | InvalidKeyException | URISyntaxException | IOException | InterruptedException ex) {
-            throw new CloudRuntimeException(ex);
-        }
-        return false;
+        return account(accountId, storeId);
+//        return user(accountId, storeId);
     }
 
     private String userRequestString(String action, URI poeEndpoint, String poeAccessKeyId, String poeAccessKeySecret, String userId, String userName, String userPermissionPolicyName, String userPermissionPolicy) throws UnsupportedEncodingException, InvalidKeyException, NoSuchAlgorithmException {
@@ -1168,9 +1096,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         return httpClient;
     }
 
-    /**
-     * For future use if we want to switch back to creating accounts.
-     */
     private boolean account(long accountId, long storeId) {
         String[] accessSecretKeysEndpoint = getAccessSecretKeysEndpoint(storeId);
         String accountAccessKey = accessSecretKeysEndpoint[0];
@@ -1256,5 +1181,80 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         signature = urlEncode(signature, false);
         requestString.append(signature);
         return requestString.toString();
+    }
+
+    /**
+     * For future use if we want to switch back to creating users.
+     */
+    private boolean user(long accountId, long storeId) {
+        String[] accessSecretKeysEndpoint = getAccessSecretKeysEndpoint(storeId);
+        String accountAccessKey = accessSecretKeysEndpoint[0];
+        String accountSecretKey = accessSecretKeysEndpoint[1];
+        String endpoint = accessSecretKeysEndpoint[2]; // this URL cannot be used for "/poe/rest" because Huawei REST API interprets "/poe" as a bucket
+
+        Account account = _accountDao.findById(accountId);
+        String userId = account.getUuid();
+        String userName = account.getAccountName();
+
+        try {
+            URI poeEndpointUri = new URI("https://poe-obs.scsynergy.net:9443/poe/rest");
+            URI createUserUri = new URI(userRequestString("CreateUser", poeEndpointUri, accountAccessKey, accountSecretKey, userId, userName, null, null));
+            HttpRequest request = HttpRequest.newBuilder(createUserUri)
+                    .GET()
+                    .version(HttpClient.Version.HTTP_2)
+                    .timeout(Duration.ofSeconds(10))
+                    .build();
+            HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 200) {
+                JSONObject jsonXml = XML.toJSONObject(response.body());
+                JSONObject createdUser = jsonXml
+                        .getJSONObject("CreateUserResponse")
+                        .getJSONObject("CreateUserResult")
+                        .getJSONObject("User");
+                userId = createdUser.getString("UserId");
+
+                String userPermissionPolicyName = "AccessAllPolicy";
+                String userPermissionPolicy = "{\"Statement\":[{\"Effect\":\"Allow\",\"Action\":\"*\",\"Resource\":\"*\"}]}";
+                URI setUserPermissionPolicyUri = new URI(userRequestString("PutUserPolicy", poeEndpointUri, accountAccessKey, accountSecretKey, userId, userName, userPermissionPolicyName, userPermissionPolicy));
+                HttpRequest setUserPermissionPolicyRequest = HttpRequest.newBuilder()
+                        .uri(setUserPermissionPolicyUri)
+                        .GET()
+                        .version(HttpClient.Version.HTTP_2)
+                        .timeout(Duration.ofSeconds(30))
+                        .build();
+                getHttpClient().send(setUserPermissionPolicyRequest, HttpResponse.BodyHandlers.ofString());
+
+                URI createAccessKeyUri = new URI(userRequestString("CreateAccessKey", poeEndpointUri, accountAccessKey, accountSecretKey, userId, userName, null, null));
+                HttpRequest createAccessKeyRequest = HttpRequest.newBuilder()
+                        .uri(createAccessKeyUri)
+                        .GET()
+                        .version(HttpClient.Version.HTTP_2)
+                        .timeout(Duration.ofSeconds(10))
+                        .build();
+                response = getHttpClient().send(createAccessKeyRequest, HttpResponse.BodyHandlers.ofString());
+                jsonXml = XML.toJSONObject(response.body());
+                JSONObject createdAccessKey = jsonXml
+                        .getJSONObject("CreateAccessKeyResponse")
+                        .getJSONObject("CreateAccessKeyResult")
+                        .getJSONObject("AccessKey");
+                String username = createdAccessKey.getString("UserName");
+                if (userName.equals(username)) {
+                    String ak = createdAccessKey.getString("AccessKeyId");
+                    String sk = createdAccessKey.getString("SecretAccessKey");
+                    // Store user credentials
+                    Map<String, String> details = new HashMap<>();
+                    details.put(ACCOUNT_ACCESS_KEY, ak);
+                    details.put(ACCOUNT_SECRET_KEY, sk);
+                    _accountDetailsDao.persist(accountId, details);
+                    return true;
+                }
+            } else if (response.statusCode() == 409) {
+                logger.debug("Skipping user creation as the user ID already exists in Huawei OBS store: " + userId);
+                return true;
+            }
+        } catch (NoSuchAlgorithmException | KeyManagementException | InvalidKeyException | URISyntaxException | IOException | InterruptedException ex) {
+            throw new CloudRuntimeException(ex);
+        }
+        return false;
     }
 }
