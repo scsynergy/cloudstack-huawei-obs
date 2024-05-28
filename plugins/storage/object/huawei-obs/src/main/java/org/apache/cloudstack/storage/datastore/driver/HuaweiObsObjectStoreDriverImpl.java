@@ -52,7 +52,6 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.TimeZone;
 import java.util.TreeMap;
-import java.util.concurrent.ThreadLocalRandom;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import javax.inject.Inject;
@@ -981,7 +980,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         String endpoint = accessSecretKeysEndpoint[2]; // this URL cannot be used for "/poe/rest" because Huawei REST API interprets "/poe" as a bucket
 
         Account account = _accountDao.findById(accountId);
-        String accountID = Integer.toString(ThreadLocalRandom.current().nextInt(100000, 200000));
+        String accountID = Integer.toString(Long.valueOf(account.getAccountId()).intValue());
         String accountName = account.getUuid();
 
         try {
