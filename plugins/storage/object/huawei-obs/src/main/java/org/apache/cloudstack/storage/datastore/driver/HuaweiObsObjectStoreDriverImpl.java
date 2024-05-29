@@ -169,6 +169,8 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .PUT(HttpRequest.BodyPublishers.noBody())
                     .build();
             HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+            System.err.println(response.body());
+            System.err.println(response.statusCode() + " == CREATE BUCKET");
             if (response.statusCode() == 200) {
                 URI poeEndpointUri = new URI("https://poe-obs.scsynergy.net:9443/poe/rest");
                 String userBucketPolicy = createUserBucketPolicy(bucketName, userName, poeEndpointUri, accountAccessKey, accountSecretKey);
