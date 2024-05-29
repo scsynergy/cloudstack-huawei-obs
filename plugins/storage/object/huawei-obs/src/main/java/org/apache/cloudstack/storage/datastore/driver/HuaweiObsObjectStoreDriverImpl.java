@@ -136,9 +136,9 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
     public Bucket createBucket(Bucket bucket, boolean objectLock) {
         long accountId = bucket.getAccountId();
         long storeId = bucket.getObjectStoreId();
-        Account account = _accountDao.findById(accountId);
-        String userId = account.getUuid(); // this is the Cloudstack user that pressed the button of the UI
-        String userName = account.getAccountName(); // this is the Cloudstack user that pressed the button of the UI
+        Account account = _accountDao.findById(accountId);  
+        String userId =Integer.toString(Long.valueOf(account.getAccountId()).intValue()); // this is the Cloudstack user that pressed the button of the UI
+        String userName = account.getUuid(); // this is the Cloudstack user that pressed the button of the UI
         String[] accessSecretKeysEndpoint = getAccessSecretKeysEndpoint(storeId);
         String accountAccessKey = accessSecretKeysEndpoint[0];
         String accountSecretKey = accessSecretKeysEndpoint[1];
@@ -328,7 +328,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         }
     }
 
-    protected Long[] getStorageInfo(String bucketName, URI endpoint, String accountAccessKey, String accountSecretKey) throws URISyntaxException, NoSuchAlgorithmException, UnsupportedEncodingException, InvalidKeyException, KeyManagementException, IOException, InterruptedException {
+    private Long[] getStorageInfo(String bucketName, URI endpoint, String accountAccessKey, String accountSecretKey) throws URISyntaxException, NoSuchAlgorithmException, UnsupportedEncodingException, InvalidKeyException, KeyManagementException, IOException, InterruptedException {
         String timestamp = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss zzz"));
         StringBuilder data = new StringBuilder()
                 .append("GET").append("\n")
