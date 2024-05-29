@@ -139,15 +139,20 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         Account account = _accountDao.findById(accountId);
         String userId = Integer.toString(Long.valueOf(account.getAccountId()).intValue()); // this is the Cloudstack user that pressed the button of the UI
         String userName = account.getUuid(); // this is the Cloudstack user that pressed the button of the UI
-        String[] accessSecretKeysEndpoint = getAccessSecretKeysEndpoint(storeId);
-        String accountAccessKey = accessSecretKeysEndpoint[0];
-        String accountSecretKey = accessSecretKeysEndpoint[1];
+        String[] accessSecretKeysEndpoint = getStoreAccessSecretKeysEndpoint(storeId);
         String endpoint = accessSecretKeysEndpoint[2]; // this URL cannot be used for "/poe/rest" because Huawei REST API interprets "/poe" as a bucket
         String bucketName = bucket.getName();
 
         if ((_accountDetailsDao.findDetail(accountId, ACCOUNT_ACCESS_KEY) == null) || (_accountDetailsDao.findDetail(accountId, ACCOUNT_SECRET_KEY) == null)) {
             throw new CloudRuntimeException("Bucket access credentials unavailable for account: " + account.getAccountName());
         }
+
+        String accountAccessKey = _accountDetailsDao.findDetail(accountId, ACCOUNT_ACCESS_KEY).getValue();
+        String accountSecretKey = _accountDetailsDao.findDetail(accountId, ACCOUNT_SECRET_KEY).getValue();
+        System.err.println("===== " + userId + "=====");
+        System.err.println("===== " + userName + "=====");
+        System.err.println("===== " + accountAccessKey + "=====");
+        System.err.println("===== " + accountSecretKey + "=====");
 
         try {
             URI createBucketUri = new URI(endpoint);
@@ -253,7 +258,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
 
     @Override
     public List<Bucket> listBuckets(long storeId) {
-        String[] accessSecretKeysEndpoint = getAccessSecretKeysEndpoint(storeId);
+        String[] accessSecretKeysEndpoint = getStoreAccessSecretKeysEndpoint(storeId);
         String accountAccessKey = accessSecretKeysEndpoint[0];
         String accountSecretKey = accessSecretKeysEndpoint[1];
         String endpoint = accessSecretKeysEndpoint[2]; // this URL cannot be used for "/poe/rest" because Huawei REST API interprets "/poe" as a bucket
@@ -294,7 +299,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
 
     @Override
     public boolean deleteBucket(String bucketName, long storeId) {
-        String[] accessSecretKeysEndpoint = getAccessSecretKeysEndpoint(storeId);
+        String[] accessSecretKeysEndpoint = getStoreAccessSecretKeysEndpoint(storeId);
         String accountAccessKey = accessSecretKeysEndpoint[0];
         String accountSecretKey = accessSecretKeysEndpoint[1];
         String endpoint = accessSecretKeysEndpoint[2]; // this URL cannot be used for "/poe/rest" because Huawei REST API interprets "/poe" as a bucket
@@ -362,7 +367,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
 
     @Override
     public AccessControlList getBucketAcl(String bucketName, long storeId) {
-        String[] accessSecretKeysEndpoint = getAccessSecretKeysEndpoint(storeId);
+        String[] accessSecretKeysEndpoint = getStoreAccessSecretKeysEndpoint(storeId);
         String accountAccessKey = accessSecretKeysEndpoint[0];
         String accountSecretKey = accessSecretKeysEndpoint[1];
         String endpoint = accessSecretKeysEndpoint[2]; // this URL cannot be used for "/poe/rest" because Huawei REST API interprets "/poe" as a bucket
@@ -428,7 +433,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
 
     @Override
     public void setBucketAcl(String bucketName, AccessControlList accessControlList, long storeId) {
-        String[] accessSecretKeysEndpoint = getAccessSecretKeysEndpoint(storeId);
+        String[] accessSecretKeysEndpoint = getStoreAccessSecretKeysEndpoint(storeId);
         String accountAccessKey = accessSecretKeysEndpoint[0];
         String accountSecretKey = accessSecretKeysEndpoint[1];
         String endpoint = accessSecretKeysEndpoint[2]; // this URL cannot be used for "/poe/rest" because Huawei REST API interprets "/poe" as a bucket
@@ -553,7 +558,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
      */
     @Override
     public void setBucketPolicy(String bucketName, String policy, long storeId) {
-        String[] accessSecretKeysEndpoint = getAccessSecretKeysEndpoint(storeId);
+        String[] accessSecretKeysEndpoint = getStoreAccessSecretKeysEndpoint(storeId);
         String accountAccessKey = accessSecretKeysEndpoint[0];
         String accountSecretKey = accessSecretKeysEndpoint[1];
         String endpoint = accessSecretKeysEndpoint[2]; // this URL cannot be used for "/poe/rest" because Huawei REST API interprets "/poe" as a bucket
@@ -695,7 +700,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
      */
     @Override
     public BucketPolicy getBucketPolicy(String bucketName, long storeId) {
-        String[] accessSecretKeysEndpoint = getAccessSecretKeysEndpoint(storeId);
+        String[] accessSecretKeysEndpoint = getStoreAccessSecretKeysEndpoint(storeId);
         String accountAccessKey = accessSecretKeysEndpoint[0];
         String accountSecretKey = accessSecretKeysEndpoint[1];
         String endpoint = accessSecretKeysEndpoint[2]; // this URL cannot be used for "/poe/rest" because Huawei REST API interprets "/poe" as a bucket
@@ -738,7 +743,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
      */
     @Override
     public void deleteBucketPolicy(String bucketName, long storeId) {
-        String[] accessSecretKeysEndpoint = getAccessSecretKeysEndpoint(storeId);
+        String[] accessSecretKeysEndpoint = getStoreAccessSecretKeysEndpoint(storeId);
         String accountAccessKey = accessSecretKeysEndpoint[0];
         String accountSecretKey = accessSecretKeysEndpoint[1];
         String endpoint = accessSecretKeysEndpoint[2]; // this URL cannot be used for "/poe/rest" because Huawei REST API interprets "/poe" as a bucket
@@ -778,7 +783,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
 
     @Override
     public boolean setBucketVersioning(String bucketName, long storeId) {
-        String[] accessSecretKeysEndpoint = getAccessSecretKeysEndpoint(storeId);
+        String[] accessSecretKeysEndpoint = getStoreAccessSecretKeysEndpoint(storeId);
         String accountAccessKey = accessSecretKeysEndpoint[0];
         String accountSecretKey = accessSecretKeysEndpoint[1];
         String endpoint = accessSecretKeysEndpoint[2]; // this URL cannot be used for "/poe/rest" because Huawei REST API interprets "/poe" as a bucket
@@ -818,7 +823,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
 
     @Override
     public boolean deleteBucketVersioning(String bucketName, long storeId) {
-        String[] accessSecretKeysEndpoint = getAccessSecretKeysEndpoint(storeId);
+        String[] accessSecretKeysEndpoint = getStoreAccessSecretKeysEndpoint(storeId);
         String accountAccessKey = accessSecretKeysEndpoint[0];
         String accountSecretKey = accessSecretKeysEndpoint[1];
         String endpoint = accessSecretKeysEndpoint[2]; // this URL cannot be used for "/poe/rest" because Huawei REST API interprets "/poe" as a bucket
@@ -861,7 +866,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
      */
     @Override
     public void setBucketQuota(String bucketName, long storeId, long size) {
-        String[] accessSecretKeysEndpoint = getAccessSecretKeysEndpoint(storeId);
+        String[] accessSecretKeysEndpoint = getStoreAccessSecretKeysEndpoint(storeId);
         String accountAccessKey = accessSecretKeysEndpoint[0];
         String accountSecretKey = accessSecretKeysEndpoint[1];
         String endpoint = accessSecretKeysEndpoint[2]; // this URL cannot be used for "/poe/rest" because Huawei REST API interprets "/poe" as a bucket
@@ -900,7 +905,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
 
     @Override
     public Map<String, Long> getAllBucketsUsage(long storeId) {
-        String[] accessSecretKeysEndpoint = getAccessSecretKeysEndpoint(storeId);
+        String[] accessSecretKeysEndpoint = getStoreAccessSecretKeysEndpoint(storeId);
         String accountAccessKey = accessSecretKeysEndpoint[0];
         String accountSecretKey = accessSecretKeysEndpoint[1];
         String endpoint = accessSecretKeysEndpoint[2]; // this URL cannot be used for "/poe/rest" because Huawei REST API interprets "/poe" as a bucket
@@ -976,7 +981,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
     }
 
     private boolean account(long accountId, long storeId) {
-        String[] accessSecretKeysEndpoint = getAccessSecretKeysEndpoint(storeId);
+        String[] accessSecretKeysEndpoint = getStoreAccessSecretKeysEndpoint(storeId);
         String accountAccessKey = accessSecretKeysEndpoint[0];
         String accountSecretKey = accessSecretKeysEndpoint[1];
         String endpoint = accessSecretKeysEndpoint[2]; // this URL cannot be used for "/poe/rest" because Huawei REST API interprets "/poe" as a bucket
@@ -1144,7 +1149,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         return builder.toString();
     }
 
-    protected String[] getAccessSecretKeysEndpoint(long storeId) {
+    protected String[] getStoreAccessSecretKeysEndpoint(long storeId) {
         ObjectStoreVO store = _storeDao.findById(storeId);
         String endpoint = store.getUrl();
         Map<String, String> storeDetails = _storeDetailsDao.getDetails(storeId);
@@ -1169,7 +1174,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
      * For future use if we want to switch back to creating users.
      */
     private boolean user(long accountId, long storeId) {
-        String[] accessSecretKeysEndpoint = getAccessSecretKeysEndpoint(storeId);
+        String[] accessSecretKeysEndpoint = getStoreAccessSecretKeysEndpoint(storeId);
         String accountAccessKey = accessSecretKeysEndpoint[0];
         String accountSecretKey = accessSecretKeysEndpoint[1];
         String endpoint = accessSecretKeysEndpoint[2]; // this URL cannot be used for "/poe/rest" because Huawei REST API interprets "/poe" as a bucket
@@ -1228,6 +1233,10 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     details.put(ACCOUNT_ACCESS_KEY, ak);
                     details.put(ACCOUNT_SECRET_KEY, sk);
                     _accountDetailsDao.persist(accountId, details);
+                    System.err.println("----- " + userId + "-----");
+                    System.err.println("----- " + userName + "-----");
+                    System.err.println("----- " + ak + "-----");
+                    System.err.println("----- " + sk + "-----");
                     return true;
                 }
             } else if (response.statusCode() == 409) {
