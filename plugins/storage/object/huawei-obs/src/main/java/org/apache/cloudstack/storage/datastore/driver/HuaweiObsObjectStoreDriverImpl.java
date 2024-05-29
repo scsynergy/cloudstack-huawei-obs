@@ -136,8 +136,8 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
     public Bucket createBucket(Bucket bucket, boolean objectLock) {
         long accountId = bucket.getAccountId();
         long storeId = bucket.getObjectStoreId();
-        Account account = _accountDao.findById(accountId);  
-        String userId =Integer.toString(Long.valueOf(account.getAccountId()).intValue()); // this is the Cloudstack user that pressed the button of the UI
+        Account account = _accountDao.findById(accountId);
+        String userId = Integer.toString(Long.valueOf(account.getAccountId()).intValue()); // this is the Cloudstack user that pressed the button of the UI
         String userName = account.getUuid(); // this is the Cloudstack user that pressed the button of the UI
         String[] accessSecretKeysEndpoint = getAccessSecretKeysEndpoint(storeId);
         String accountAccessKey = accessSecretKeysEndpoint[0];
