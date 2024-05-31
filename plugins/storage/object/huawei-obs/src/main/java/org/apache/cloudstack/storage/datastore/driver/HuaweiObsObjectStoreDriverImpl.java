@@ -150,10 +150,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
 
         String accountAccessKey = _accountDetailsDao.findDetail(accountId, ACCOUNT_ACCESS_KEY).getValue();
         String accountSecretKey = _accountDetailsDao.findDetail(accountId, ACCOUNT_SECRET_KEY).getValue();
-        System.err.println("===== " + userId + "=====");
-        System.err.println("===== " + userName + "=====");
-        System.err.println("===== " + accountAccessKey + "=====");
-        System.err.println("===== " + accountSecretKey + "=====");
 
         try {
             URI createBucketUri = new URI(endpoint);
@@ -177,20 +173,16 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .setHeader("x-obs-bucket-object-lock-enabled", wormHeaderValue)
                     .build();
             HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-            System.err.println(response.body());
-            System.err.println(response.statusCode() + " == CREATE BUCKET");
             if (response.statusCode() == 200) {
-                URI poeEndpointUri = new URI("https://poe-obs.scsynergy.net:9443/poe/rest");
+//                URI poeEndpointUri = new URI("https://poe-obs.scsynergy.net:9443/poe/rest");
                 // only for users - but not for accounts
 //                String userBucketPolicy = createUserBucketPolicy(bucketName, userName, poeEndpointUri, accountAccessKey, accountSecretKey);
 //                setBucketPolicy(bucketName, userBucketPolicy, storeId);
                 BucketVO bucketVO = _bucketDao.findById(bucket.getId());
-                String userAccessKey = _accountDetailsDao.findDetail(accountId, ACCOUNT_ACCESS_KEY).getValue();
-                String userSecretKey = _accountDetailsDao.findDetail(accountId, ACCOUNT_SECRET_KEY).getValue();
                 // Cloudstack can only handle path mode (https://fqdn:port/bucketName) but neither domain mode (https://bucketName.fqdn:port) nor mixed mode (https://bucketName.fqdn:port/bucketName)
                 bucketVO.setBucketURL(endpoint + "/" + bucketName);
-                bucketVO.setAccessKey(userAccessKey);
-                bucketVO.setSecretKey(userSecretKey);
+                bucketVO.setAccessKey(accountAccessKey);
+                bucketVO.setSecretKey(accountSecretKey);
                 _bucketDao.update(bucket.getId(), bucketVO);
                 cors(bucketName, createBucketUri, accountAccessKey, accountSecretKey);
                 return bucketVO;
@@ -1003,11 +995,8 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .timeout(Duration.ofSeconds(10))
                     .build();
             HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-            System.err.println(response.body());
-            System.err.println(response.statusCode() + " == CREATE ACCOUNT WITH ALL");
             if (response.statusCode() == 200) {
                 JSONObject jsonXml = XML.toJSONObject(response.body());
-                System.err.println(jsonXml.toString(4));
                 JSONObject createdAccessKey = jsonXml
                         .getJSONObject("CreateAccountWithAllResponse")
                         .getJSONObject("CreateAccessKeyResult")
@@ -1019,10 +1008,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                 details.put(ACCOUNT_ACCESS_KEY, ak);
                 details.put(ACCOUNT_SECRET_KEY, sk);
                 _accountDetailsDao.persist(accountId, details);
-                System.err.println("----- " + accountID + "-----");
-                System.err.println("----- " + accountName + "-----");
-                System.err.println("----- " + ak + "-----");
-                System.err.println("----- " + sk + "-----");
                 return true;
             } else if (response.statusCode() == 409) {
                 logger.debug("Skipping account creation as the account ID already exists in Huawei OBS store: " + accountID);
