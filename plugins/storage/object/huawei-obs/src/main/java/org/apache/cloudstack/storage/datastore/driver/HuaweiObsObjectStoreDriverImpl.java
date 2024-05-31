@@ -142,6 +142,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         String[] accessSecretKeysEndpoint = getStoreAccessSecretKeysEndpoint(storeId);
         String endpoint = accessSecretKeysEndpoint[2]; // this URL cannot be used for "/poe/rest" because Huawei REST API interprets "/poe" as a bucket
         String bucketName = bucket.getName();
+        String wormHeaderValue = (objectLock) ? "true" : "false";
 
         if ((_accountDetailsDao.findDetail(accountId, ACCOUNT_ACCESS_KEY) == null) || (_accountDetailsDao.findDetail(accountId, ACCOUNT_SECRET_KEY) == null)) {
             throw new CloudRuntimeException("Bucket access credentials unavailable for account: " + account.getAccountName());
@@ -166,20 +167,23 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     .append("\n")
                     .append("\n")
                     .append(timestamp).append("\n")
+                    .append("x-obs-bucket-object-lock-enabled:").append(wormHeaderValue).append("\n")
                     .append("/").append(bucketName).append("/");
             StringBuilder requestString = new StringBuilder()
                     .append(createBucketUri.getScheme()).append("://").append(bucketName).append(".").append(createBucketUri.getHost());
             createBucketUri = new URI(requestString.toString());
             HttpRequest request = authorizationHeaders(createBucketUri, timestamp, accountAccessKey, accountSecretKey, data)
                     .PUT(HttpRequest.BodyPublishers.noBody())
+                    .setHeader("x-obs-bucket-object-lock-enabled", wormHeaderValue)
                     .build();
             HttpResponse<String> response = getHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
             System.err.println(response.body());
             System.err.println(response.statusCode() + " == CREATE BUCKET");
             if (response.statusCode() == 200) {
                 URI poeEndpointUri = new URI("https://poe-obs.scsynergy.net:9443/poe/rest");
-                String userBucketPolicy = createUserBucketPolicy(bucketName, userName, poeEndpointUri, accountAccessKey, accountSecretKey);
-                setBucketPolicy(bucketName, userBucketPolicy, storeId);
+                // only for users - but not for accounts
+//                String userBucketPolicy = createUserBucketPolicy(bucketName, userName, poeEndpointUri, accountAccessKey, accountSecretKey);
+//                setBucketPolicy(bucketName, userBucketPolicy, storeId);
                 BucketVO bucketVO = _bucketDao.findById(bucket.getId());
                 String userAccessKey = _accountDetailsDao.findDetail(accountId, ACCOUNT_ACCESS_KEY).getValue();
                 String userSecretKey = _accountDetailsDao.findDetail(accountId, ACCOUNT_SECRET_KEY).getValue();
@@ -197,7 +201,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         return bucket;
     }
 
-    protected boolean headBucket(String bucketName, URI endpoint, String accountAccessKey, String accountSecretKey) throws URISyntaxException, NoSuchAlgorithmException, UnsupportedEncodingException, InvalidKeyException, KeyManagementException, IOException, InterruptedException {
+    private boolean headBucket(String bucketName, URI endpoint, String accountAccessKey, String accountSecretKey) throws URISyntaxException, NoSuchAlgorithmException, UnsupportedEncodingException, InvalidKeyException, KeyManagementException, IOException, InterruptedException {
         try {
             String timestamp = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss zzz"));
             StringBuilder data = new StringBuilder()
@@ -220,7 +224,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         return true;
     }
 
-    protected void cors(String bucketName, URI endpoint, String accountAccessKey, String accountSecretKey) throws NoSuchAlgorithmException, UnsupportedEncodingException, URISyntaxException, InvalidKeyException, KeyManagementException, IOException, InterruptedException {
+    private void cors(String bucketName, URI endpoint, String accountAccessKey, String accountSecretKey) throws NoSuchAlgorithmException, UnsupportedEncodingException, URISyntaxException, InvalidKeyException, KeyManagementException, IOException, InterruptedException {
         String timestamp = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss zzz"));
         StringBuilder bodyBuilder = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n")
                 .append("<CORSConfiguration>\n")
@@ -1003,6 +1007,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
             System.err.println(response.statusCode() + " == CREATE ACCOUNT WITH ALL");
             if (response.statusCode() == 200) {
                 JSONObject jsonXml = XML.toJSONObject(response.body());
+                System.err.println(jsonXml.toString(4));
                 JSONObject createdAccessKey = jsonXml
                         .getJSONObject("CreateAccountWithAllResponse")
                         .getJSONObject("CreateAccessKeyResult")
@@ -1014,6 +1019,10 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                 details.put(ACCOUNT_ACCESS_KEY, ak);
                 details.put(ACCOUNT_SECRET_KEY, sk);
                 _accountDetailsDao.persist(accountId, details);
+                System.err.println("----- " + accountID + "-----");
+                System.err.println("----- " + accountName + "-----");
+                System.err.println("----- " + ak + "-----");
+                System.err.println("----- " + sk + "-----");
                 return true;
             } else if (response.statusCode() == 409) {
                 logger.debug("Skipping account creation as the account ID already exists in Huawei OBS store: " + accountID);
@@ -1149,7 +1158,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         return builder.toString();
     }
 
-    protected String[] getStoreAccessSecretKeysEndpoint(long storeId) {
+    private String[] getStoreAccessSecretKeysEndpoint(long storeId) {
         ObjectStoreVO store = _storeDao.findById(storeId);
         String endpoint = store.getUrl();
         Map<String, String> storeDetails = _storeDetailsDao.getDetails(storeId);
@@ -1158,7 +1167,7 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
         return new String[]{clientAccessKey, clientSecretKey, endpoint};
     }
 
-    protected HttpClient getHttpClient() throws NoSuchAlgorithmException, KeyManagementException {
+    private HttpClient getHttpClient() throws NoSuchAlgorithmException, KeyManagementException {
         if (httpClient == null) {
             SSLContext sslContext = SSLContext.getInstance("TLS");
             sslContext.init(null, TRUST_ANY_CERTIFICATES, new SecureRandom());
@@ -1233,10 +1242,6 @@ public class HuaweiObsObjectStoreDriverImpl extends BaseObjectStoreDriverImpl {
                     details.put(ACCOUNT_ACCESS_KEY, ak);
                     details.put(ACCOUNT_SECRET_KEY, sk);
                     _accountDetailsDao.persist(accountId, details);
-                    System.err.println("----- " + userId + "-----");
-                    System.err.println("----- " + userName + "-----");
-                    System.err.println("----- " + ak + "-----");
-                    System.err.println("----- " + sk + "-----");
                     return true;
                 }
             } else if (response.statusCode() == 409) {
